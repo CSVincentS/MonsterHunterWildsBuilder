@@ -1,0 +1,36 @@
+{
+  "required_skills" : {
+    "Agitator" : 5,
+    "Gogmapocalypse" : 1,
+    "Burst" : 3,
+    "Peak Performance" : 5,
+    "Stamina Surge" : 3,
+    "Constitution" : 3,
+    "Adrenaline Rush" : 2,
+    "Weakness Exploit" : 5
+  },
+  "weapon_type" : "bow",
+  "armor" : {
+    "exclude_sets" : [ ],
+    "exclude_skills" : [ ],
+    "min_rarity" : null,
+    "max_rarity" : null
+  },
+  "decorations" : {
+    "exclude_ids" : [ ],
+    "min_rarity" : null,
+    "max_rarity" : null
+  },
+  "amulets" : {
+    "exclude_families" : [ ],
+    "min_rarity" : null,
+    "max_rarity" : null
+  },
+  "weapons" : {
+    "include_ids" : [ ],
+    "min_rarity" : null,
+    "max_rarity" : null
+  },
+  "ignored_skills" : [ ],
+  "ranking" : "free_slots"
+}
