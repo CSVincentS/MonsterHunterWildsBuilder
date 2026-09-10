@@ -1,0 +1,16 @@
+# Build output
+target/
+
+# Node toolchain
+node_modules/
+
+# IDE files
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
