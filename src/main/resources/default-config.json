@@ -1,0 +1,22 @@
+{
+  "required_skills": {
+    "-1689391744": 5,
+    "-315492576": 3
+  },
+  "weapon_type": "bow",
+  "armor": {
+    "exclude_sets": [],
+    "exclude_skills": []
+  },
+  "decorations": {
+    "exclude_ids": []
+  },
+  "amulets": {
+    "exclude_families": []
+  },
+  "weapons": {
+    "include_ids": []
+  },
+  "ignored_skills": [],
+  "ranking": "free_slots"
+}
