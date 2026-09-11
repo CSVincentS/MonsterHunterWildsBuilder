@@ -74,6 +74,8 @@ public class OptimizerWindow extends JFrame {
   private final JLabel statusLabel = new JLabel("Ready");
 
   private Map<Integer, Skill> lastSkillMap = Map.of();
+  private String lastRanking = RankingFactory.FREE_SLOTS;
+  private long lastBonus;
 
   public OptimizerWindow(GameData data, GearPoolConfig config) {
     super("MH Wilds Loadout Optimizer");
@@ -302,6 +304,7 @@ public class OptimizerWindow extends JFrame {
         row >= 0
           ? BuildDetailFormatter.detailText(
               resultsModel.buildAt(row),
+              BuildScore.of(resultsModel.buildAt(row), lastRanking, lastBonus),
               lastSkillMap,
               data.setSkillRanks()
             )
@@ -352,6 +355,11 @@ public class OptimizerWindow extends JFrame {
     int computeTopN = (Integer) topNSpinner.getValue();
     int showTopN = (Integer) showSpinner.getValue();
     solveButton.setEnabled(false);
+
+    lastRanking = String.valueOf(rankingCombo.getSelectedItem());
+    lastBonus = ((Number) equipmentBonusSpinner.getValue()).longValue();
+    resultsModel.setScoreFunc(b -> BuildScore.of(b, lastRanking, lastBonus).total());
+    detailArea.setText("");
 
     status("Solving…", false);
 

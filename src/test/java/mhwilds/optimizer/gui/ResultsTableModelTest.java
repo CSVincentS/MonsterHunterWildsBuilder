@@ -44,4 +44,15 @@ class ResultsTableModelTest {
     assertThat(m.getValueAt(0, 7)).isEqualTo("Sheathe Charm I");
     assertThat(m.getValueAt(0, 8)).isEqualTo("Calamitous Angel");
   }
+
+  @Test
+  void scoreColumnRespectsConfiguredMetric() {
+    Build b = build("Orion α");
+    ResultsTableModel m = new ResultsTableModel(List.of(b));
+
+    assertThat(m.getValueAt(0, 1)).isEqualTo("200");
+
+    m.setScoreFunc(v -> v.equipmentAwareScore(1000));
+    assertThat(m.getValueAt(0, 1)).isEqualTo(String.valueOf(b.equipmentAwareScore(1000)));
+  }
 }

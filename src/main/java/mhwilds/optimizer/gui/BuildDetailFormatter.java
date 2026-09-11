@@ -46,8 +46,17 @@ public final class BuildDetailFormatter {
     Map<Integer, Skill> skillMap,
     Map<Integer, Map<Integer, Integer>> setSkillRanks
   ) {
+    return detailText(build, BuildScore.of(build, "free_slots", 0L), skillMap, setSkillRanks);
+  }
+
+  public static String detailText(
+    Build build,
+    BuildScore score,
+    Map<Integer, Skill> skillMap,
+    Map<Integer, Map<Integer, Integer>> setSkillRanks
+  ) {
     StringBuilder sb = new StringBuilder();
-    sb.append("Score: ").append(build.freeSlotScore()).append('\n');
+    sb.append(score.headline()).append('\n');
 
     sb.append("Armor:\n");
 

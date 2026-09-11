@@ -1,6 +1,7 @@
 package mhwilds.optimizer.gui;
 
 import java.util.List;
+import java.util.function.ToLongFunction;
 import javax.swing.table.AbstractTableModel;
 import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.ArmorSlot;
@@ -22,9 +23,16 @@ public class ResultsTableModel extends AbstractTableModel {
   };
 
   private List<Build> builds;
+  private ToLongFunction<Build> scoreFunc = Build::freeSlotScore;
 
   public ResultsTableModel(List<Build> builds) {
     this.builds = List.copyOf(builds);
+  }
+
+  /** Switches the Score column to a different metric (e.g. the equipment-aware rating). */
+  public void setScoreFunc(ToLongFunction<Build> scoreFunc) {
+    this.scoreFunc = scoreFunc;
+    fireTableDataChanged();
   }
 
   public void setBuilds(List<Build> builds) {
@@ -53,7 +61,7 @@ public class ResultsTableModel extends AbstractTableModel {
 
     return switch (columnIndex) {
       case 0 -> rowIndex + 1;
-      case 1 -> String.valueOf(b.freeSlotScore());
+      case 1 -> String.valueOf(scoreFunc.applyAsLong(b));
       case 2 -> armorName(b, ArmorSlot.HEAD);
       case 3 -> armorName(b, ArmorSlot.CHEST);
       case 4 -> armorName(b, ArmorSlot.ARMS);
