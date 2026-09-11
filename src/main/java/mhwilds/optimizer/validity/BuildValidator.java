@@ -135,14 +135,6 @@ public class BuildValidator {
       if (total < 0) {
         errors.add("Skill " + skillId + " has negative total: " + total);
       }
-
-      Skill skill = skillMap.get(skillId);
-
-      if (skill != null && total > skill.maxRank()) {
-        errors.add(
-          "Skill '" + skill.name() + "' total " + total + " exceeds max rank " + skill.maxRank()
-        );
-      }
     }
 
     return errors;

@@ -102,6 +102,9 @@ public final class BuildDetailFormatter {
         int level = entry.getValue();
         int max = skill != null ? skill.maxRank() : level;
 
+        if (level > max) {
+          level = max;
+        }
         sb.append(String.format("  %-21s %d/%d\n", name, level, max));
       }
     }

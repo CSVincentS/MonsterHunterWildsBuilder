@@ -296,7 +296,12 @@ public class Main {
       for (var entry : skills.entrySet().stream().sorted(Map.Entry.comparingByKey()).toList()) {
         Skill skill = skillMap.get(entry.getKey());
         String name = skill != null ? skill.name() : String.valueOf(entry.getKey());
-        out.printf(" %s=%d", name, entry.getValue());
+        int level = entry.getValue();
+
+        if (skill != null && level > skill.maxRank()) {
+          level = skill.maxRank();
+        }
+        out.printf(" %s=%d", name, level);
       }
     }
     out.println();

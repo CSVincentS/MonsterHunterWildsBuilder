@@ -93,7 +93,7 @@ class BuildValidatorTest {
   }
 
   @Test
-  void skillExceedingMaxRankFails() {
+  void skillOverMaxRankIsLegal() {
     ArmorPiece head = piece(ArmorSlot.HEAD, new int[] {}, Map.of(100, 6));
     ArmorPiece[] pieces = fivePieces(null);
     pieces[0] = head;
@@ -101,7 +101,7 @@ class BuildValidatorTest {
     Build build = new Build(pieces, List.of(), List.of(), null, weapon);
 
     List<String> errors = validator.validate(build);
-    assertThat(errors).anyMatch(e -> e.contains("exceed"));
+    assertThat(errors).isEmpty();
   }
 
   @Test

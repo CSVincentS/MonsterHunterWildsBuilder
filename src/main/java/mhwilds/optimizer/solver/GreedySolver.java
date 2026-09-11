@@ -63,8 +63,6 @@ public final class GreedySolver implements Solver {
   private int[] reqSkillIdx;
   private int numSkills;
   private Map<Integer, Integer> skillIndexMap;
-  private int[] skillMaxRank;
-  private boolean[] requiredFlag;
   private boolean[] setReqFlag;
   private Map<Integer, Integer>[] setReqRanks;
 
@@ -186,25 +184,10 @@ public final class GreedySolver implements Solver {
       }
 
       numSkills = pool.skillMap().size();
-      skillMaxRank = new int[numSkills];
-
-      for (Map.Entry<Integer, Skill> e : pool.skillMap().entrySet()) {
-        skillMaxRank[skillIndexMap.get(e.getKey())] = e.getValue().maxRank();
-      }
-
-      requiredFlag = new boolean[numSkills];
-
-      for (int k = 0; k < skillCount; k++) {
-        requiredFlag[skillIndexMap.get(reqIds.get(k))] = true;
-      }
     } else {
       skillIndexMap = Map.of();
 
       numSkills = 0;
-
-      skillMaxRank = new int[0];
-
-      requiredFlag = new boolean[0];
     }
 
     this.reqSkillIdx = new int[skillCount];
@@ -384,20 +367,12 @@ public final class GreedySolver implements Solver {
 
     updateSetCounts(state, piece, 1);
     int[] sv = piece == null ? EMPTY_INT : pieceSkill.get(piece);
-    boolean over = false;
 
     for (int i = 0; i < sv.length; i += 2) {
-      int si = sv[i];
-      state.totals[si] += sv[i + 1];
-
-      if (!requiredFlag[si] && state.totals[si] > skillMaxRank[si]) {
-        over = true;
-      }
+      state.totals[sv[i]] += sv[i + 1];
     }
 
-    if (!over) {
-      search(depth + 1, state, slotAcc + ps, slotsUsed + pieceSlots);
-    }
+    search(depth + 1, state, slotAcc + ps, slotsUsed + pieceSlots);
 
     for (int i = 0; i < sv.length; i += 2) {
       state.totals[sv[i]] -= sv[i + 1];
@@ -659,11 +634,6 @@ public final class GreedySolver implements Solver {
           amuletOk = false;
           break;
         }
-
-        if (amuV > 0 && reqSkillIdx[k] >= 0 && leafTot[reqSkillIdx[k]] + amuV > maxRank[k]) {
-          amuletOk = false;
-          break;
-        }
       }
 
       if (!amuletOk) {
@@ -678,29 +648,6 @@ public final class GreedySolver implements Solver {
         boolean noWeapon = b == -1;
         long weaponOmitScore = noWeapon ? equipmentBonus : 0L;
         int[] bp = noWeapon ? EMPTY_INT : weaponSkill.get(weapons.get(b));
-
-        if (overCaps(leafTot, ap, bp)) {
-          continue;
-        }
-
-        boolean weaponOk = true;
-
-        for (int k = 0; k < skillCount; k++) {
-          int innate = noWeapon ? 0 : weaponInnate[b][k];
-
-          if (
-            innate > 0 &&
-            reqSkillIdx[k] >= 0 &&
-            leafTot[reqSkillIdx[k]] + (noAmulet ? 0 : amuVec[a][k]) + innate > maxRank[k]
-          ) {
-            weaponOk = false;
-            break;
-          }
-        }
-
-        if (!weaponOk) {
-          continue;
-        }
 
         int[] rb = new int[skillCount];
         boolean zero = true;
@@ -1114,54 +1061,11 @@ public final class GreedySolver implements Solver {
     return best;
   }
 
-  private static int contrib(int[] packed, int si) {
-    for (int i = 0; i < packed.length; i += 2) {
-      if (packed[i] == si) {
-        return packed[i + 1];
-      }
-    }
-
-    return 0;
-  }
-
   private boolean decFits(int[] base, Decoration d) {
-    int[] p = decSkill.get(d);
-
-    for (int i = 0; i < p.length; i += 2) {
-      int si = p[i];
-
-      if (!requiredFlag[si] && base[si] + p[i + 1] > skillMaxRank[si]) {
-        return false;
-      }
-    }
-
     return true;
   }
 
   private boolean overCaps(int[] base, int[] amuPacked, int[] weaponPacked) {
-    for (int i = 0; i < amuPacked.length; i += 2) {
-      int si = amuPacked[i];
-
-      if (
-        !requiredFlag[si] &&
-        base[si] + amuPacked[i + 1] + contrib(weaponPacked, si) > skillMaxRank[si]
-      ) {
-        return true;
-      }
-    }
-
-    for (int i = 0; i < weaponPacked.length; i += 2) {
-      int si = weaponPacked[i];
-
-      if (requiredFlag[si] || contrib(amuPacked, si) != 0) {
-        continue;
-      }
-
-      if (base[si] + weaponPacked[i + 1] > skillMaxRank[si]) {
-        return true;
-      }
-    }
-
     return false;
   }
 
