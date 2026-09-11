@@ -19,7 +19,8 @@ public record GearPoolConfig(
   @JsonProperty("amulets") AmuletConfig amulets,
   @JsonProperty("weapons") WeaponConfig weapons,
   @JsonProperty("ignored_skills") java.util.List<Integer> ignoredSkills,
-  @JsonProperty("ranking") String ranking
+  @JsonProperty("ranking") String ranking,
+  @JsonProperty("equipment_slot_bonus") Long equipmentSlotBonus
 ) {
   public GearPoolConfig {
     if (requiredSkills == null) {
@@ -52,6 +53,10 @@ public record GearPoolConfig(
 
     if (ranking == null) {
       ranking = "free_slots";
+    }
+
+    if (equipmentSlotBonus == null) {
+      equipmentSlotBonus = 1000L;
     }
   }
 

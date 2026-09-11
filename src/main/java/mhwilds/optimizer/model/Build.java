@@ -195,4 +195,34 @@ public record Build(
 
     return score;
   }
+
+  /** Number of equipment slots left empty: any armor piece, the weapon, or the amulet. */
+  public int omittedEquipmentCount() {
+    int omitted = 0;
+
+    for (ArmorPiece piece : armorPieces) {
+      if (piece == null) {
+        omitted++;
+      }
+    }
+
+    if (weapon == null) {
+      omitted++;
+    }
+
+    if (amuletRank == null) {
+      omitted++;
+    }
+
+    return omitted;
+  }
+
+  /**
+   * Free-slot score with equipment omission rewarded: each empty equipment slot contributes {@code
+   * bonus} points, so a lean build that needs fewer pieces can outrank a full build carrying free
+   * level-3 decoration slots.
+   */
+  public long equipmentAwareScore(long bonus) {
+    return freeSlotScore() + bonus * omittedEquipmentCount();
+  }
 }

@@ -91,7 +91,14 @@ public class Main {
 
     System.err.println("Solving...");
     long start = System.currentTimeMillis();
-    GreedySolver solver = new GreedySolver(topN, options.threads());
+    String strategyName = rankingName != null ? rankingName : config.ranking();
+    long equipmentBonus =
+      options.equipmentBonus() != null
+        ? options.equipmentBonus()
+        : config.equipmentSlotBonus() != null
+          ? config.equipmentSlotBonus()
+          : 0L;
+    GreedySolver solver = new GreedySolver(topN, options.threads(), equipmentBonus);
     List<Build> results = solver.solve(pool);
     long elapsed = System.currentTimeMillis() - start;
     System.err.println("Solver found " + results.size() + " builds in " + elapsed + "ms");
@@ -106,18 +113,18 @@ public class Main {
       return;
     }
 
-    String strategyName = rankingName != null ? rankingName : config.ranking();
-    RankingStrategy ranking = RankingFactory.create(strategyName);
+    RankingStrategy ranking = RankingFactory.create(strategyName, equipmentBonus);
     Integer showOpt = options.showTopN();
     int showN = showOpt != null ? showOpt : topN;
     List<Build> ranked = results.stream().sorted(ranking).limit(showN).toList();
+    boolean equipmentSlotRanking = RankingFactory.isEquipmentSlotRanking(strategyName);
 
     out.println("=== Top " + ranked.size() + " Builds (ranking: " + strategyName + ") ===");
     out.println();
     Map<Integer, Skill> skillMap = pool.skillMap();
 
     for (int i = 0; i < ranked.size(); i++) {
-      printBuild(out, i + 1, ranked.get(i), skillMap);
+      printBuild(out, i + 1, ranked.get(i), skillMap, equipmentSlotRanking, equipmentBonus);
     }
 
     if (outputPath != null) {
@@ -133,7 +140,8 @@ public class Main {
     Integer showTopN,
     String ranking,
     String outputPath,
-    int threads
+    int threads,
+    Long equipmentBonus
   ) {}
 
   public static CliArguments parseArgs(String[] args) {
@@ -144,6 +152,7 @@ public class Main {
     String rankingName = null;
     String outputPath = null;
     int threads = DEFAULT_THREADS;
+    Long equipmentBonus = null;
     boolean dataDirConsumed = false;
     boolean configPathConsumed = false;
 
@@ -172,6 +181,13 @@ public class Main {
         case "--ranking" -> {
           rankingName = stringValue(args, ++i, "--ranking");
         }
+        case "--equipment-bonus" -> {
+          long v = parseIntValue(args, ++i, "--equipment-bonus");
+          if (v < 0) {
+            throw new IllegalArgumentException("--equipment-bonus must be >= 0, got " + v);
+          }
+          equipmentBonus = v;
+        }
         case "--output" -> {
           outputPath = stringValue(args, ++i, "--output");
         }
@@ -194,7 +210,16 @@ public class Main {
       }
     }
 
-    return new CliArguments(dataDir, configPath, topN, showTopN, rankingName, outputPath, threads);
+    return new CliArguments(
+      dataDir,
+      configPath,
+      topN,
+      showTopN,
+      rankingName,
+      outputPath,
+      threads,
+      equipmentBonus
+    );
   }
 
   private static String stringValue(String[] args, int i, String option) {
@@ -219,9 +244,24 @@ public class Main {
     PrintStream out,
     int rank,
     Build build,
-    Map<Integer, Skill> skillMap
+    Map<Integer, Skill> skillMap,
+    boolean equipmentSlotRanking,
+    long equipmentBonus
   ) {
-    out.printf("#%d  Free-slot score: %d%n", rank, build.freeSlotScore());
+    if (equipmentSlotRanking) {
+      out.printf(
+        "#%d  Equipment-slot score: %d  (free slots %d, " +
+          (equipmentBonus > 0 ? "%d omitted x %d bonus" : "%d omitted") +
+          ")%n",
+        rank,
+        build.equipmentAwareScore(equipmentBonus),
+        build.freeSlotScore(),
+        build.omittedEquipmentCount(),
+        equipmentBonus
+      );
+    } else {
+      out.printf("#%d  Free-slot score: %d%n", rank, build.freeSlotScore());
+    }
 
     out.print("  Armor:");
     for (ArmorSlot slot : ArmorSlot.values()) {
@@ -283,7 +323,13 @@ public class Main {
       "  --threads N        Number of solver threads (default: " + DEFAULT_THREADS + ")"
     );
     System.out.println(
-      "  --ranking <name>   Ranking strategy (default: from config, currently: free_slots)"
+      "  --ranking <name>   Ranking strategy: free_slots (default) or free_equipment_slots"
+    );
+    System.out.println(
+      "  --equipment-bonus <n>  Points awarded per omitted equipment slot, e.g. 1000 = one"
+    );
+    System.out.println(
+      "                    free level-3 decoration slot. Used by free_equipment_slots ranking."
     );
     System.out.println("  --output <file>    Write output to file instead of stdout");
     System.out.println("  -h, --help         Show this help message");

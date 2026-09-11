@@ -326,4 +326,80 @@ class GreedySolverTest {
 
     assertThat(new GreedySolver().solve(solverPool)).isEmpty();
   }
+
+  // Equipment-omission: when the ranking values empty equipment slots, the solver may skip
+  // gear that contributes nothing; with bonus 0 it must be byte-identical to classic behavior.
+
+  private SolverPool omissionPool() {
+    // Head (skill 100 x3) + Chest (skill 100 x2) meet the requirement; the remaining armor
+    // pieces, the weapon, and the amulet contribute nothing and are all optional.
+    return new SolverPool(
+      List.of(
+        piece(ArmorSlot.HEAD, new int[] { 3 }, Map.of(100, 3)),
+        piece(ArmorSlot.CHEST, new int[] { 3 }, Map.of(100, 2)),
+        piece(ArmorSlot.ARMS, new int[] { 3 }, Map.of()),
+        piece(ArmorSlot.WAIST, new int[] { 3 }, Map.of()),
+        piece(ArmorSlot.LEGS, new int[] { 3 }, Map.of())
+      ),
+      List.of(),
+      List.of(),
+      List.of(new AmuletRank(1, 1, "Charm", Map.of())),
+      List.of(new Weapon(1, "bow", "Bow", 100, 0, new int[] {}, Map.of(), List.of())),
+      skillMap,
+      new SkillThresholds(Map.of(100, 5))
+    );
+  }
+
+  @Test
+  void bonusZeroNeverOmitsGear() {
+    List<Build> results = new GreedySolver(100, 1, 0).solve(omissionPool());
+
+    assertThat(results).isNotEmpty();
+
+    for (Build build : results) {
+      assertThat(build.omittedEquipmentCount())
+        .as("every equipment slot is filled when omission is not rewarded")
+        .isZero();
+      assertThat(build.totalSkillLevel(100)).isGreaterThanOrEqualTo(5);
+    }
+  }
+
+  @Test
+  void positiveBonusOmitsGearThatContributesNothing() {
+    List<Build> results = new GreedySolver(100, 1, 1000).solve(omissionPool());
+
+    assertThat(results).isNotEmpty();
+    Build best = results.get(0);
+
+    assertThat(best.totalSkillLevel(100)).isGreaterThanOrEqualTo(5);
+
+    // Bonus is high enough that at least the weapon and/or amulet should be omitted; the
+    // score must beat the maximum freeSlotScore of any build that keeps all gear.
+    assertThat(best.equipmentAwareScore(1000)).isGreaterThan(freeSlotOnlyScore(results));
+  }
+
+  @Test
+  void parallelSolverMatchesSequentialWithBonus() {
+    List<Build> sequential = new GreedySolver(200, 1, 1000).solve(omissionPool());
+    List<Build> parallel = new GreedySolver(200, 4, 1000).solve(omissionPool());
+
+    assertThat(sequential).isNotEmpty();
+
+    assertThat(parallel.get(0).equipmentAwareScore(1000)).isEqualTo(
+      sequential.get(0).equipmentAwareScore(1000)
+    );
+    assertThat(parallel.get(0).omittedEquipmentCount()).isEqualTo(
+      sequential.get(0).omittedEquipmentCount()
+    );
+  }
+
+  private long freeSlotOnlyScore(List<Build> results) {
+    long max = 0;
+
+    for (Build build : results) {
+      max = Math.max(max, build.freeSlotScore());
+    }
+
+    return max;
+  }
 }

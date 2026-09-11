@@ -57,7 +57,9 @@ class SolverServiceTest {
       source,
       "bow",
       List.of(new SkillRequirement("burst", 1)),
-      new RarityBounds(4, null, null, null, null, null, null, null)
+      new RarityBounds(4, null, null, null, null, null, null, null),
+      source.ranking(),
+      source.equipmentSlotBonus()
     );
 
     assertThat(merged.requiredSkills()).containsExactly(java.util.Map.entry("burst", 1));
@@ -66,6 +68,7 @@ class SolverServiceTest {
     assertThat(merged.weaponType()).isEqualTo("bow");
     assertThat(merged.weapons().includeIds()).isEqualTo(source.weapons().includeIds());
     assertThat(merged.ranking()).isEqualTo(source.ranking());
+    assertThat(merged.equipmentSlotBonus()).isEqualTo(source.equipmentSlotBonus());
   }
 
   @Test
@@ -75,7 +78,9 @@ class SolverServiceTest {
       GearPoolConfig.load("src/main/resources/default-config.json"),
       "great-sword",
       List.of(),
-      RarityBounds.unbounded()
+      RarityBounds.unbounded(),
+      "free_slots",
+      null
     );
 
     assertThat(merged.weaponType()).isEqualTo("great-sword");
@@ -88,7 +93,9 @@ class SolverServiceTest {
       GearPoolConfig.load("src/main/resources/default-config.json"),
       "bow",
       List.of(new SkillRequirement("constitution", 5), new SkillRequirement("stamina surge", 3)),
-      RarityBounds.unbounded()
+      RarityBounds.unbounded(),
+      "free_slots",
+      null
     );
     var result = service.solve(config, 3, 3);
 
@@ -107,7 +114,9 @@ class SolverServiceTest {
       GearPoolConfig.load("src/main/resources/default-config.json"),
       "bow",
       List.of(new SkillRequirement("constitution", 5), new SkillRequirement("stamina surge", 3)),
-      RarityBounds.unbounded()
+      RarityBounds.unbounded(),
+      "free_slots",
+      null
     );
     var result = service.solve(config, 10, 3);
 
@@ -116,5 +125,25 @@ class SolverServiceTest {
     assertThat(result.builds())
       .extracting(Build::freeSlotScore)
       .isSortedAccordingTo(java.util.Comparator.reverseOrder());
+  }
+
+  @Test
+  void solveWithEquipmentSlotRankingCanOmitGear() {
+    SolverService service = new SolverService(data);
+    GearPoolConfig config = service.buildConfig(
+      GearPoolConfig.load("src/main/resources/default-config.json"),
+      "bow",
+      List.of(new SkillRequirement("constitution", 5), new SkillRequirement("stamina surge", 3)),
+      RarityBounds.unbounded(),
+      "free_equipment_slots",
+      3000L
+    );
+    var result = service.solve(config, 20, 20);
+
+    assertThat(result.builds()).isNotEmpty();
+    Build best = result.builds().get(0);
+
+    assertThat(best.totalSkillLevel(-1689391744)).isGreaterThanOrEqualTo(5);
+    assertThat(best.omittedEquipmentCount()).isGreaterThan(0);
   }
 }

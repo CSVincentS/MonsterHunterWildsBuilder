@@ -18,7 +18,6 @@ import mhwilds.optimizer.model.Decoration;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.SlotAssignment;
 import mhwilds.optimizer.model.Weapon;
-import mhwilds.optimizer.ranking.FreeSlotRanking;
 
 /**
  * Finds the exact top-K builds by free-slot score: best-first depth-first search over armor slots
@@ -27,9 +26,11 @@ import mhwilds.optimizer.ranking.FreeSlotRanking;
 public final class GreedySolver implements Solver {
 
   private static final long[] POW10 = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
+  private static final int[] EMPTY_INT = new int[0];
 
   private final int k;
   private final int threads;
+  private final long equipmentBonus;
 
   private long totalLeavesEvaluated;
   private long totalBuildsFound;
@@ -80,7 +81,7 @@ public final class GreedySolver implements Solver {
   private long bestAmuletTotal;
   private long bestWeaponSideTotal;
 
-  private static final class SolverState {
+  private final class SolverState {
 
     final int[] totals;
     final int[] cur;
@@ -97,7 +98,7 @@ public final class GreedySolver implements Solver {
       this.setCount = new int[skillCount];
       this.chosen = new ArmorPiece[5];
 
-      this.topK = new PriorityQueue<>(Comparator.comparingLong(Build::freeSlotScore));
+      this.topK = new PriorityQueue<>(Comparator.comparingLong(GreedySolver.this::scoreOf));
     }
   }
 
@@ -110,12 +111,17 @@ public final class GreedySolver implements Solver {
   }
 
   public GreedySolver(int k, int threads) {
+    this(k, threads, 0L);
+  }
+
+  public GreedySolver(int k, int threads, long equipmentBonus) {
     if (k < 1) {
       throw new IllegalArgumentException("k must be >= 1, got " + k);
     }
 
     this.k = k;
     this.threads = Math.max(1, threads);
+    this.equipmentBonus = Math.max(0, equipmentBonus);
   }
 
   @Override
@@ -195,7 +201,9 @@ public final class GreedySolver implements Solver {
       skillIndexMap = Map.of();
 
       numSkills = 0;
+
       skillMaxRank = new int[0];
+
       requiredFlag = new boolean[0];
     }
 
@@ -215,7 +223,7 @@ public final class GreedySolver implements Solver {
       totalBuildsFound = state.buildsFound;
 
       List<Build> out = new ArrayList<>(state.topK);
-      out.sort(new FreeSlotRanking());
+      out.sort(scoreRanking());
 
       return out;
     } else {
@@ -224,9 +232,14 @@ public final class GreedySolver implements Solver {
   }
 
   private List<Build> solveParallel() {
-    List<ArmorPiece> headPieces = bySlot.get(ArmorSlot.HEAD);
-    int numTasks = Math.min(threads, headPieces.size());
-    int chunkSize = (headPieces.size() + numTasks - 1) / numTasks;
+    List<ArmorPiece> headCandidates = new ArrayList<>(bySlot.get(ArmorSlot.HEAD));
+
+    if (equipmentBonus > 0) {
+      headCandidates.add(null);
+    }
+
+    int numTasks = Math.min(threads, headCandidates.size());
+    int chunkSize = (headCandidates.size() + numTasks - 1) / numTasks;
 
     // Each chunk runs on its own SolverState, so the search itself shares no mutable data;
     // only the cumulative counters need synchronization, and chunk top-K lists are merged.
@@ -237,13 +250,13 @@ public final class GreedySolver implements Solver {
 
       for (int i = 0; i < numTasks; i++) {
         int from = i * chunkSize;
-        int to = Math.min(from + chunkSize, headPieces.size());
+        int to = Math.min(from + chunkSize, headCandidates.size());
 
         if (from >= to) {
           break;
         }
 
-        forkTasks.add(pool.submit(new ChunkTask(headPieces.subList(from, to))));
+        forkTasks.add(pool.submit(new ChunkTask(headCandidates.subList(from, to))));
       }
 
       List<List<Build>> partialResults = new ArrayList<>();
@@ -271,40 +284,7 @@ public final class GreedySolver implements Solver {
       SolverState state = new SolverState(numSkills, skillCount, k);
 
       for (ArmorPiece head : headPieces) {
-        state.chosen[0] = head;
-        long ps = slotScore(head.slots());
-
-        for (int k = 0; k < skillCount; k++) {
-          state.cur[k] += head.skills().getOrDefault(reqIds.get(k), 0);
-        }
-
-        updateSetCounts(state, head, 1);
-        int[] sv = pieceSkill.get(head);
-        boolean over = false;
-
-        for (int i = 0; i < sv.length; i += 2) {
-          int si = sv[i];
-          state.totals[si] += sv[i + 1];
-
-          if (!requiredFlag[si] && state.totals[si] > skillMaxRank[si]) {
-            over = true;
-          }
-        }
-
-        if (!over) {
-          search(1, state, ps, head.slots().length);
-        }
-
-        for (int i = 0; i < sv.length; i += 2) {
-          state.totals[sv[i]] -= sv[i + 1];
-        }
-
-        state.chosen[0] = null;
-        updateSetCounts(state, head, -1);
-
-        for (int k = 0; k < skillCount; k++) {
-          state.cur[k] -= head.skills().getOrDefault(reqIds.get(k), 0);
-        }
+        descend(state, 0, 0, 0, head);
       }
 
       synchronized (GreedySolver.this) {
@@ -312,20 +292,29 @@ public final class GreedySolver implements Solver {
         totalBuildsFound += state.buildsFound;
       }
 
-      return state.topK.stream().sorted(new FreeSlotRanking()).toList();
+      return state.topK.stream().sorted(scoreRanking()).toList();
     }
   }
 
-  static List<Build> mergeTopK(List<List<Build>> partialResults, int k) {
-    PriorityQueue<Build> merged = new PriorityQueue<>(
-      Comparator.comparingLong(Build::freeSlotScore)
-    );
+  /** The score a ranking-aware search orders by: free deco slots plus omitted-gear bonuses. */
+  private long scoreOf(Build b) {
+    return b.equipmentAwareScore(equipmentBonus);
+  }
+
+  private Comparator<Build> scoreRanking() {
+    return Comparator.comparingLong(this::scoreOf)
+      .reversed()
+      .thenComparing(Comparator.comparingInt(Build::totalDefense).reversed());
+  }
+
+  private List<Build> mergeTopK(List<List<Build>> partialResults, int k) {
+    PriorityQueue<Build> merged = new PriorityQueue<>(Comparator.comparingLong(this::scoreOf));
 
     for (List<Build> partial : partialResults) {
       for (Build b : partial) {
         if (merged.size() < k) {
           merged.add(b);
-        } else if (b.freeSlotScore() > merged.peek().freeSlotScore()) {
+        } else if (scoreOf(b) > scoreOf(merged.peek())) {
           merged.poll();
           merged.add(b);
         }
@@ -333,7 +322,7 @@ public final class GreedySolver implements Solver {
     }
 
     List<Build> out = new ArrayList<>(merged);
-    out.sort(new FreeSlotRanking());
+    out.sort(scoreRanking());
 
     return out;
   }
@@ -349,49 +338,76 @@ public final class GreedySolver implements Solver {
       return;
     }
 
-    // Remaining armor and weapon free-slot potential bound what any completion of this branch
-    // can score; if that upper bound cannot beat the heap's worst, the subtree cannot reach the
-    // current top-K, so prune without expanding it.
-    if (heapFull(state) && slotAcc + remainingMaxScore[depth] + weaponMaxSlotScore <= state.worst) {
+    // Remaining armor, weapon, and amulet free-slot potential (including equipment-omission
+    // bonuses) bound what any completion of this branch can score; if that upper bound cannot
+    // beat the heap's worst, the subtree cannot reach the current top-K, so prune it.
+    if (
+      heapFull(state) &&
+      slotAcc + remainingMaxScore[depth] + weaponMaxSlotScore + equipmentBonus <= state.worst
+    ) {
       return;
     }
 
     for (ArmorPiece piece : bySlot.get(slotOrder[depth])) {
-      state.chosen[depth] = piece;
-      int pieceSlots = piece.slots().length;
-      long ps = slotScore(piece.slots());
+      descend(state, depth, slotAcc, slotsUsed, piece);
+    }
 
-      for (int k = 0; k < skillCount; k++) {
-        state.cur[k] += piece.skills().getOrDefault(reqIds.get(k), 0);
+    if (equipmentBonus > 0) {
+      descend(state, depth, slotAcc, slotsUsed, null);
+    }
+  }
+
+  /**
+   * Binds {@code piece} (or {@code null}, meaning the equipment slot is left empty) at {@code
+   * depth}, recursing into the remaining slots and reverting all state afterwards. An omitted
+   * armor slot contributes the equipment bonus instead of any decoration slots.
+   */
+  private void descend(
+    SolverState state,
+    int depth,
+    long slotAcc,
+    int slotsUsed,
+    ArmorPiece piece
+  ) {
+    state.chosen[depth] = piece;
+    int pieceSlots = 0;
+    long ps = equipmentBonus;
+
+    if (piece != null) {
+      pieceSlots = piece.slots().length;
+      ps = slotScore(piece.slots());
+    }
+
+    for (int k = 0; k < skillCount; k++) {
+      state.cur[k] += piece != null ? piece.skills().getOrDefault(reqIds.get(k), 0) : 0;
+    }
+
+    updateSetCounts(state, piece, 1);
+    int[] sv = piece == null ? EMPTY_INT : pieceSkill.get(piece);
+    boolean over = false;
+
+    for (int i = 0; i < sv.length; i += 2) {
+      int si = sv[i];
+      state.totals[si] += sv[i + 1];
+
+      if (!requiredFlag[si] && state.totals[si] > skillMaxRank[si]) {
+        over = true;
       }
+    }
 
-      updateSetCounts(state, piece, 1);
-      int[] sv = pieceSkill.get(piece);
-      boolean over = false;
+    if (!over) {
+      search(depth + 1, state, slotAcc + ps, slotsUsed + pieceSlots);
+    }
 
-      for (int i = 0; i < sv.length; i += 2) {
-        int si = sv[i];
-        state.totals[si] += sv[i + 1];
+    for (int i = 0; i < sv.length; i += 2) {
+      state.totals[sv[i]] -= sv[i + 1];
+    }
 
-        if (!requiredFlag[si] && state.totals[si] > skillMaxRank[si]) {
-          over = true;
-        }
-      }
+    state.chosen[depth] = null;
+    updateSetCounts(state, piece, -1);
 
-      if (!over) {
-        search(depth + 1, state, slotAcc + ps, slotsUsed + pieceSlots);
-      }
-
-      for (int i = 0; i < sv.length; i += 2) {
-        state.totals[sv[i]] -= sv[i + 1];
-      }
-
-      state.chosen[depth] = null;
-      updateSetCounts(state, piece, -1);
-
-      for (int k = 0; k < skillCount; k++) {
-        state.cur[k] -= piece.skills().getOrDefault(reqIds.get(k), 0);
-      }
+    for (int k = 0; k < skillCount; k++) {
+      state.cur[k] -= piece != null ? piece.skills().getOrDefault(reqIds.get(k), 0) : 0;
     }
   }
 
@@ -445,7 +461,7 @@ public final class GreedySolver implements Solver {
     int slots = 0;
 
     for (int p = 0; p < slotOrder.length; p++) {
-      slots += chosen[p].slots().length;
+      slots += chosen[p] != null ? chosen[p].slots().length : 0;
     }
 
     for (int k = 0; k < skillCount; k++) {
@@ -468,7 +484,7 @@ public final class GreedySolver implements Solver {
       }
     }
 
-    if (heapFull(state) && slotAcc + weaponMaxSlotScore <= state.worst) {
+    if (heapFull(state) && slotAcc + weaponMaxSlotScore + equipmentBonus <= state.worst) {
       return;
     }
 
@@ -483,7 +499,7 @@ public final class GreedySolver implements Solver {
     boolean[][] occupied = new boolean[slotOrder.length][];
 
     for (int i = 0; i < slotOrder.length; i++) {
-      occupied[i] = new boolean[chosen[i].slots().length];
+      occupied[i] = new boolean[chosen[i] != null ? chosen[i].slots().length : 0];
     }
 
     List<SlotAssignment> armorAssign = new ArrayList<>();
@@ -494,6 +510,10 @@ public final class GreedySolver implements Solver {
     List<int[]> slotRefs = new ArrayList<>();
 
     for (int p = 0; p < slotOrder.length; p++) {
+      if (chosen[p] == null) {
+        continue;
+      }
+
       int[] slotsArr = chosen[p].slots();
 
       for (int i = 0; i < slotsArr.length; i++) {
@@ -583,7 +603,7 @@ public final class GreedySolver implements Solver {
 
     long armorFreeScore = slotAcc - occupiedScore;
 
-    if (heapFull(state) && armorFreeScore + weaponMaxSlotScore <= state.worst) {
+    if (heapFull(state) && armorFreeScore + weaponMaxSlotScore + equipmentBonus <= state.worst) {
       return;
     }
 
@@ -608,27 +628,39 @@ public final class GreedySolver implements Solver {
     long armorFreeScore,
     boolean amuletStrictlyNeeded
   ) {
-    for (int a = 0; a < amulets.size(); a++) {
-      if (amuletStrictlyNeeded && !amuUseful[a]) {
+    // Index -1 means "no amulet" (or "no weapon"): an empty equipment slot, offered only when
+    // omission is rewarded, scoring the equipment bonus instead of any skills or deco slots.
+    for (int a = -1; a < amulets.size(); a++) {
+      if (a == -1 && equipmentBonus <= 0) {
         continue;
       }
+
+      boolean noAmulet = a == -1;
+
+      if (noAmulet) {
+        if (amuletStrictlyNeeded) {
+          continue;
+        }
+      } else if (amuletStrictlyNeeded && !amuUseful[a]) {
+        continue;
+      }
+
+      long amuletBonusScore = noAmulet ? equipmentBonus : 0L;
+      int[] ap = noAmulet ? EMPTY_INT : amuSkill.get(amulets.get(a));
 
       int[] ra = new int[skillCount];
       boolean amuletOk = true;
 
       for (int k = 0; k < skillCount; k++) {
-        ra[k] = Math.max(0, r0[k] - amuVec[a][k]);
+        int amuV = noAmulet ? 0 : amuVec[a][k];
+        ra[k] = Math.max(0, r0[k] - amuV);
 
         if (ra[k] > bestWeaponSide[k]) {
           amuletOk = false;
           break;
         }
 
-        if (
-          amuVec[a][k] > 0 &&
-          reqSkillIdx[k] >= 0 &&
-          leafTot[reqSkillIdx[k]] + amuVec[a][k] > maxRank[k]
-        ) {
+        if (amuV > 0 && reqSkillIdx[k] >= 0 && leafTot[reqSkillIdx[k]] + amuV > maxRank[k]) {
           amuletOk = false;
           break;
         }
@@ -638,10 +670,14 @@ public final class GreedySolver implements Solver {
         continue;
       }
 
-      int[] ap = amuSkill.get(amulets.get(a));
+      for (int b = -1; b < weapons.size(); b++) {
+        if (b == -1 && equipmentBonus <= 0) {
+          continue;
+        }
 
-      for (int b = 0; b < weapons.size(); b++) {
-        int[] bp = weaponSkill.get(weapons.get(b));
+        boolean noWeapon = b == -1;
+        long weaponOmitScore = noWeapon ? equipmentBonus : 0L;
+        int[] bp = noWeapon ? EMPTY_INT : weaponSkill.get(weapons.get(b));
 
         if (overCaps(leafTot, ap, bp)) {
           continue;
@@ -650,10 +686,12 @@ public final class GreedySolver implements Solver {
         boolean weaponOk = true;
 
         for (int k = 0; k < skillCount; k++) {
+          int innate = noWeapon ? 0 : weaponInnate[b][k];
+
           if (
-            weaponInnate[b][k] > 0 &&
+            innate > 0 &&
             reqSkillIdx[k] >= 0 &&
-            leafTot[reqSkillIdx[k]] + amuVec[a][k] + weaponInnate[b][k] > maxRank[k]
+            leafTot[reqSkillIdx[k]] + (noAmulet ? 0 : amuVec[a][k]) + innate > maxRank[k]
           ) {
             weaponOk = false;
             break;
@@ -668,7 +706,8 @@ public final class GreedySolver implements Solver {
         boolean zero = true;
 
         for (int k = 0; k < skillCount; k++) {
-          rb[k] = Math.max(0, ra[k] - weaponInnate[b][k]);
+          int innate = noWeapon ? 0 : weaponInnate[b][k];
+          rb[k] = Math.max(0, ra[k] - innate);
 
           if (rb[k] > 0) {
             zero = false;
@@ -678,7 +717,13 @@ public final class GreedySolver implements Solver {
         long weaponFree;
         List<SlotAssignment> weaponAssign = List.of();
 
-        if (!zero) {
+        if (noWeapon) {
+          if (!zero) {
+            continue;
+          }
+
+          weaponFree = 0L;
+        } else if (!zero) {
           weaponAssign = new ArrayList<>();
           int[] effBase = leafTot.clone();
           applyPacked(effBase, ap);
@@ -691,7 +736,7 @@ public final class GreedySolver implements Solver {
         } else {
           weaponFree = weaponSlotScore[b];
         }
-        long score = armorFreeScore + weaponFree;
+        long score = armorFreeScore + weaponFree + amuletBonusScore + weaponOmitScore;
 
         if (heapFull(state) && score <= state.worst) {
           continue;
@@ -701,8 +746,8 @@ public final class GreedySolver implements Solver {
           finalArmor.clone(),
           new ArrayList<>(armorAssign),
           weaponAssign,
-          amulets.get(a),
-          weapons.get(b)
+          noAmulet ? null : amulets.get(a),
+          noWeapon ? null : weapons.get(b)
         );
         offer(state, build, score);
       }
@@ -760,6 +805,10 @@ public final class GreedySolver implements Solver {
     for (int i = 0; i < slotTypes; i++) {
       for (ArmorPiece p : bySlot.get(slotOrder[i])) {
         maxSlotScorePerSlot[i] = Math.max(maxSlotScorePerSlot[i], slotScore(p.slots()));
+      }
+
+      if (equipmentBonus > 0) {
+        maxSlotScorePerSlot[i] = Math.max(maxSlotScorePerSlot[i], equipmentBonus);
       }
     }
 
@@ -824,6 +873,10 @@ public final class GreedySolver implements Solver {
       }
 
       weaponSlotOrderAsc[b] = order;
+    }
+
+    if (equipmentBonus > 0) {
+      weaponMaxSlotScore = Math.max(weaponMaxSlotScore, equipmentBonus);
     }
 
     bestArmorDec = new int[skillCount];
@@ -1031,19 +1084,9 @@ public final class GreedySolver implements Solver {
     }
   }
 
-  private static int contrib(int[] packed, int si) {
-    for (int i = 0; i < packed.length; i += 2) {
-      if (packed[i] == si) {
-        return packed[i + 1];
-      }
-    }
-
-    return 0;
-  }
-
   /** Tracks chosen-piece counts for required set/group bonus skills (skill id == bonus id). */
   private void updateSetCounts(SolverState state, ArmorPiece piece, int delta) {
-    if (state == null) {
+    if (state == null || piece == null) {
       return;
     }
 
@@ -1069,6 +1112,16 @@ public final class GreedySolver implements Solver {
     }
 
     return best;
+  }
+
+  private static int contrib(int[] packed, int si) {
+    for (int i = 0; i < packed.length; i += 2) {
+      if (packed[i] == si) {
+        return packed[i + 1];
+      }
+    }
+
+    return 0;
   }
 
   private boolean decFits(int[] base, Decoration d) {
@@ -1197,12 +1250,12 @@ public final class GreedySolver implements Solver {
     if (state.topK.size() < k) {
       state.topK.add(build);
       state.buildsFound++;
-      state.worst = state.topK.peek().freeSlotScore();
+      state.worst = scoreOf(state.topK.peek());
     } else if (score > state.worst) {
       state.topK.poll();
       state.topK.add(build);
       state.buildsFound++;
-      state.worst = state.topK.peek().freeSlotScore();
+      state.worst = scoreOf(state.topK.peek());
     }
   }
 }

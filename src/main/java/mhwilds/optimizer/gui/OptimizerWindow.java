@@ -35,6 +35,7 @@ import mhwilds.optimizer.config.GearPoolConfig;
 import mhwilds.optimizer.loader.GameData;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.Weapon;
+import mhwilds.optimizer.ranking.RankingFactory;
 
 /** Main Swing window: edit requirements/rarity, solve, and browse ranked builds. */
 public class OptimizerWindow extends JFrame {
@@ -59,7 +60,13 @@ public class OptimizerWindow extends JFrame {
   };
   private final JSpinner topNSpinner = new JSpinner(new SpinnerNumberModel(1000, 1, 100_000, 1));
   private final JSpinner showSpinner = new JSpinner(new SpinnerNumberModel(10, 1, 100_000, 1));
-  private final JComboBox<String> rankingCombo = new JComboBox<>(new String[] { "free_slots" });
+  private final JComboBox<String> rankingCombo = new JComboBox<>(new String[] {
+    RankingFactory.FREE_SLOTS,
+    RankingFactory.FREE_EQUIPMENT_SLOTS,
+  });
+  private final JSpinner equipmentBonusSpinner = new JSpinner(
+    new SpinnerNumberModel(1000, 0, 1_000_000, 100)
+  );
   private final JComboBox<String> weaponCombo;
 
   private final JButton solveButton = new JButton("Solve");
@@ -87,6 +94,14 @@ public class OptimizerWindow extends JFrame {
     if (config.weaponType() != null) {
       weaponCombo.setSelectedItem(config.weaponType());
     }
+
+    if (config.ranking() != null) {
+      rankingCombo.setSelectedItem(config.ranking());
+    }
+
+    Long bonus = config.equipmentSlotBonus();
+    equipmentBonusSpinner.setValue(bonus != null ? Math.max(0, bonus) : 1000);
+    equipmentBonusSpinner.setEnabled(RankingFactory.FREE_EQUIPMENT_SLOTS.equals(config.ranking()));
 
     seedSkillsFrom(config);
 
@@ -246,6 +261,13 @@ public class OptimizerWindow extends JFrame {
     addOptionRow(optionsPanel, 1, "Compute top N:", topNSpinner);
     addOptionRow(optionsPanel, 2, "Show top M:", showSpinner);
     addOptionRow(optionsPanel, 3, "Ranking:", rankingCombo);
+    addOptionRow(optionsPanel, 4, "Equipment slot bonus:", equipmentBonusSpinner);
+
+    rankingCombo.addActionListener(e ->
+      equipmentBonusSpinner.setEnabled(
+        RankingFactory.FREE_EQUIPMENT_SLOTS.equals(rankingCombo.getSelectedItem())
+      )
+    );
 
     solveButton.addActionListener(e -> solve());
 
@@ -322,7 +344,9 @@ public class OptimizerWindow extends JFrame {
       baseConfig,
       String.valueOf(weaponCombo.getSelectedItem()),
       requirements,
-      bounds
+      bounds,
+      String.valueOf(rankingCombo.getSelectedItem()),
+      ((Number) equipmentBonusSpinner.getValue()).longValue()
     );
 
     int computeTopN = (Integer) topNSpinner.getValue();
@@ -396,7 +420,9 @@ public class OptimizerWindow extends JFrame {
           baseConfig,
           String.valueOf(weaponCombo.getSelectedItem()),
           skillModel.requirements(),
-          rarityBounds()
+          rarityBounds(),
+          String.valueOf(rankingCombo.getSelectedItem()),
+          ((Number) equipmentBonusSpinner.getValue()).longValue()
         );
         out.save(fc.getSelectedFile().toString());
         status("Saved " + fc.getSelectedFile().getName(), false);

@@ -45,7 +45,9 @@ public class SolverService {
     GearPoolConfig source,
     String weaponType,
     List<SkillRequirement> requirements,
-    RarityBounds bounds
+    RarityBounds bounds,
+    String ranking,
+    Long equipmentBonus
   ) {
     Map<String, Integer> required = new java.util.HashMap<>();
 
@@ -78,7 +80,8 @@ public class SolverService {
         bounds.weaponMax()
       ),
       source.ignoredSkills(),
-      source.ranking()
+      ranking != null ? ranking : source.ranking(),
+      equipmentBonus != null ? equipmentBonus : source.equipmentSlotBonus()
     );
   }
 
@@ -87,9 +90,12 @@ public class SolverService {
 
     SolverPool pool = new GearPoolResolver(data).resolve(config);
 
-    List<Build> all = new GreedySolver(computeTopN).solve(pool);
+    long bonus =
+      config.equipmentSlotBonus() != null ? Math.max(0, config.equipmentSlotBonus()) : 0L;
+    int threads = Runtime.getRuntime().availableProcessors();
+    List<Build> all = new GreedySolver(computeTopN, threads, bonus).solve(pool);
 
-    RankingStrategy ranking = RankingFactory.create(config.ranking());
+    RankingStrategy ranking = RankingFactory.create(config.ranking(), bonus);
     List<Build> ranked = all.stream().sorted(ranking).limit(Math.max(0, showTopN)).toList();
 
     long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
