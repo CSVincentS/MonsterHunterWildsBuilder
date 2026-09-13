@@ -75,7 +75,7 @@ public final class GreedySolver implements Solver {
   private int maxAmuletSkillCoverage;
   private boolean[] amuUseful;
   private long[] remainingArmorSkillTotal;
-  private long armorDecUsefulTotal;
+  private int maxDecoUsefulPoints;
   private long bestAmuletTotal;
   private long bestWeaponSideTotal;
 
@@ -421,9 +421,13 @@ public final class GreedySolver implements Solver {
 
     long remainingSlotPoints = slotsUsed + remainingMaxSlots[depth];
 
+    // Each remaining slot can hold one decoration contributing at most maxDecoUsefulPoints
+    // useful points (in aggregate across skills), and a decoration may be socketed any number
+    // of times, so slotCount * maxDecoUsefulPoints is a sound upper bound on how much the
+    // decorations can still contribute.
     long aggregateAvail =
       remainingArmorSkillTotal[depth] +
-      Math.min(remainingSlotPoints, armorDecUsefulTotal) +
+      (long) remainingSlotPoints * maxDecoUsefulPoints +
       bestAmuletTotal +
       bestWeaponSideTotal;
 
@@ -463,28 +467,156 @@ public final class GreedySolver implements Solver {
       return;
     }
 
-    int[] need = new int[skillCount];
+    int[] baseNeed = new int[skillCount];
 
     for (int k = 0; k < skillCount; k++) {
-      need[k] = setReqFlag[k] ? 0 : Math.max(0, required[k] - Math.min(cur[k], maxRank[k]));
+      baseNeed[k] = setReqFlag[k] ? 0 : Math.max(0, required[k] - Math.min(cur[k], maxRank[k]));
     }
 
-    int[] leafTot = state.totals.clone();
+    ArmorPiece[] finalArmor = chosen.clone();
 
-    boolean[][] occupied = new boolean[slotOrder.length][];
+    // Case 0: reserve nothing for the amulet and cover every need with armor decos. Only
+    // feasible when the greedy fill completes; any amulet (or none) is then acceptable.
+    {
+      int[] need = baseNeed.clone();
+      int[] filled = cur.clone();
+      int[] leafTot = state.totals.clone();
+      boolean[][] occupied = emptyOccupied(chosen);
+      List<SlotAssignment> armorAssign = new ArrayList<>();
 
-    for (int i = 0; i < slotOrder.length; i++) {
+      if (greedyArmorFill(chosen, need, filled, leafTot, occupied, armorAssign)) {
+        long free = slotAcc - occupiedScore(chosen, occupied);
+
+        if (!(heapFull(state) && free + weaponMaxSlotScore + equipmentBonus <= state.worst)) {
+          for (int a = -1; a < amulets.size(); a++) {
+            if (a == -1 && equipmentBonus <= 0) {
+              continue;
+            }
+
+            processLeafSequentialWeapon(
+              state,
+              finalArmor,
+              armorAssign,
+              leafTot,
+              new int[skillCount],
+              free,
+              a
+            );
+          }
+        }
+      }
+    }
+
+    // Case 1 per skill: reserve exactly one non-set skill for the amulet (or for the weapon
+    // side) and cover every other need with armor decos. This is what actually makes
+    // "amulet-only" builds findable: the amulet skill is kept out of the deco fill from the
+    // start, so its residual is never split across skills and a single amulet can cover it.
+    for (int k0 = 0; k0 < skillCount; k0++) {
+      if (setReqFlag[k0] || baseNeed[k0] <= 0) {
+        continue;
+      }
+
+      if (baseNeed[k0] > bestAmulet[k0] + bestWeaponSide[k0]) {
+        continue;
+      }
+
+      int[] need = baseNeed.clone();
+      need[k0] = 0;
+      int[] filled = cur.clone();
+      int[] leafTot = state.totals.clone();
+      boolean[][] occupied = emptyOccupied(chosen);
+      List<SlotAssignment> armorAssign = new ArrayList<>();
+
+      if (!greedyArmorFill(chosen, need, filled, leafTot, occupied, armorAssign)) {
+        continue;
+      }
+
+      long free = slotAcc - occupiedScore(chosen, occupied);
+
+      if (!(heapFull(state) && free + weaponMaxSlotScore + equipmentBonus <= state.worst)) {
+        for (int a = -1; a < amulets.size(); a++) {
+          if (a == -1) {
+            if (equipmentBonus <= 0 || baseNeed[k0] > bestWeaponSide[k0]) {
+              continue;
+            }
+
+            processLeafSequentialWeapon(
+              state,
+              finalArmor,
+              armorAssign,
+              leafTot,
+              residualFor(new int[skillCount], k0, baseNeed[k0], 0),
+              free,
+              a
+            );
+          } else if (amuVec[a][k0] > 0) {
+            int[] rem = residualFor(new int[skillCount], k0, baseNeed[k0], amuVec[a][k0]);
+            boolean amuletOk = true;
+
+            for (int k = 0; k < skillCount; k++) {
+              if (rem[k] > bestWeaponSide[k]) {
+                amuletOk = false;
+                break;
+              }
+            }
+
+            if (!amuletOk) {
+              continue;
+            }
+
+            processLeafSequentialWeapon(state, finalArmor, armorAssign, leafTot, rem, free, a);
+          }
+        }
+      }
+    }
+  }
+
+  private static int[] residualFor(int[] rem, int k0, int residual, int covered) {
+    rem[k0] = Math.max(0, residual - covered);
+    return rem;
+  }
+
+  private static boolean[][] emptyOccupied(ArmorPiece[] chosen) {
+    boolean[][] occupied = new boolean[chosen.length][];
+
+    for (int i = 0; i < chosen.length; i++) {
       occupied[i] = new boolean[chosen[i] != null ? chosen[i].slots().length : 0];
     }
 
-    List<SlotAssignment> armorAssign = new ArrayList<>();
-    int[] filled = cur.clone();
+    return occupied;
+  }
 
-    long occupiedScore = 0;
+  private static long occupiedScore(ArmorPiece[] chosen, boolean[][] occupied) {
+    long score = 0;
 
+    for (int p = 0; p < chosen.length; p++) {
+      if (chosen[p] == null) {
+        continue;
+      }
+
+      int[] slotsArr = chosen[p].slots();
+
+      for (int i = 0; i < slotsArr.length; i++) {
+        if (occupied[p][i]) {
+          score += POW10[slotsArr[i]];
+        }
+      }
+    }
+
+    return score;
+  }
+
+  private boolean greedyArmorFill(
+    ArmorPiece[] chosen,
+    int[] need,
+    int[] filled,
+    int[] leafTot,
+    boolean[][] occupied,
+    List<SlotAssignment> armorAssign
+  ) {
     List<int[]> slotRefs = new ArrayList<>();
 
-    for (int p = 0; p < slotOrder.length; p++) {
+    for (int p = 0; p < chosen.length; p++) {
       if (chosen[p] == null) {
         continue;
       }
@@ -542,162 +674,86 @@ public final class GreedySolver implements Solver {
 
       if (bestDec != null) {
         occupied[p][idx] = true;
-        armorAssign.add(new SlotAssignment(bestDec, slotOrder[p], idx));
         filled[bestK] += bestC;
         need[bestK] = Math.max(0, need[bestK] - bestC);
         applyPacked(leafTot, decSkill.get(bestDec));
-        occupiedScore += POW10[size];
+        armorAssign.add(new SlotAssignment(bestDec, slotOrder[p], idx));
       }
     }
 
-    int[] r0 = new int[skillCount];
-    boolean infeasible = false;
-    int amuletNeeded = 0;
-    boolean amuletStrictlyNeeded = false;
-
-    for (int k = 0; k < skillCount; k++) {
-      r0[k] = setReqFlag[k] ? 0 : Math.max(0, required[k] - Math.min(filled[k], maxRank[k]));
-
-      if (r0[k] > bestAmulet[k] + bestWeaponSide[k]) {
-        infeasible = true;
-      }
-
-      if (r0[k] > bestWeaponSide[k]) {
-        amuletStrictlyNeeded = true;
-        amuletNeeded++;
-      }
-    }
-
-    if (infeasible) {
-      return;
-    }
-
-    if (amuletNeeded > maxAmuletSkillCoverage) {
-      return;
-    }
-
-    long armorFreeScore = slotAcc - occupiedScore;
-
-    if (heapFull(state) && armorFreeScore + weaponMaxSlotScore + equipmentBonus <= state.worst) {
-      return;
-    }
-
-    ArmorPiece[] finalArmor = chosen.clone();
-    processLeafSequentialAmuletWeapon(
-      state,
-      finalArmor,
-      armorAssign,
-      leafTot,
-      r0,
-      armorFreeScore,
-      amuletStrictlyNeeded
-    );
+    return allMet(need);
   }
 
-  private void processLeafSequentialAmuletWeapon(
+  private void processLeafSequentialWeapon(
     SolverState state,
     ArmorPiece[] finalArmor,
     List<SlotAssignment> armorAssign,
     int[] leafTot,
-    int[] r0,
+    int[] ra,
     long armorFreeScore,
-    boolean amuletStrictlyNeeded
+    int amuletIdx
   ) {
-    // Index -1 means "no amulet" (or "no weapon"): an empty equipment slot, offered only when
-    // omission is rewarded, scoring the equipment bonus instead of any skills or deco slots.
-    for (int a = -1; a < amulets.size(); a++) {
-      if (a == -1 && equipmentBonus <= 0) {
+    boolean noAmulet = amuletIdx == -1;
+    long amuletBonusScore = noAmulet ? equipmentBonus : 0L;
+    int[] ap = noAmulet ? EMPTY_INT : amuSkill.get(amulets.get(amuletIdx));
+
+    for (int b = -1; b < weapons.size(); b++) {
+      if (b == -1 && equipmentBonus <= 0) {
         continue;
       }
 
-      boolean noAmulet = a == -1;
+      boolean noWeapon = b == -1;
+      long weaponOmitScore = noWeapon ? equipmentBonus : 0L;
+      int[] bp = noWeapon ? EMPTY_INT : weaponSkill.get(weapons.get(b));
 
-      if (noAmulet) {
-        if (amuletStrictlyNeeded) {
-          continue;
-        }
-      } else if (amuletStrictlyNeeded && !amuUseful[a]) {
-        continue;
-      }
-
-      long amuletBonusScore = noAmulet ? equipmentBonus : 0L;
-      int[] ap = noAmulet ? EMPTY_INT : amuSkill.get(amulets.get(a));
-
-      int[] ra = new int[skillCount];
-      boolean amuletOk = true;
+      int[] rb = new int[skillCount];
+      boolean zero = true;
 
       for (int k = 0; k < skillCount; k++) {
-        int amuV = noAmulet ? 0 : amuVec[a][k];
-        ra[k] = Math.max(0, r0[k] - amuV);
+        int innate = noWeapon ? 0 : weaponInnate[b][k];
+        rb[k] = Math.max(0, ra[k] - innate);
 
-        if (ra[k] > bestWeaponSide[k]) {
-          amuletOk = false;
-          break;
+        if (rb[k] > 0) {
+          zero = false;
         }
       }
 
-      if (!amuletOk) {
+      long weaponFree;
+      List<SlotAssignment> weaponAssign = List.of();
+
+      if (noWeapon) {
+        if (!zero) {
+          continue;
+        }
+
+        weaponFree = 0L;
+      } else if (!zero) {
+        weaponAssign = new ArrayList<>();
+        int[] effBase = leafTot.clone();
+        applyPacked(effBase, ap);
+        applyPacked(effBase, bp);
+        weaponFree = fillWeaponDecs(b, rb, weaponAssign, effBase);
+
+        if (weaponFree < 0) {
+          continue;
+        }
+      } else {
+        weaponFree = weaponSlotScore[b];
+      }
+      long score = armorFreeScore + weaponFree + amuletBonusScore + weaponOmitScore;
+
+      if (heapFull(state) && score <= state.worst) {
         continue;
       }
 
-      for (int b = -1; b < weapons.size(); b++) {
-        if (b == -1 && equipmentBonus <= 0) {
-          continue;
-        }
-
-        boolean noWeapon = b == -1;
-        long weaponOmitScore = noWeapon ? equipmentBonus : 0L;
-        int[] bp = noWeapon ? EMPTY_INT : weaponSkill.get(weapons.get(b));
-
-        int[] rb = new int[skillCount];
-        boolean zero = true;
-
-        for (int k = 0; k < skillCount; k++) {
-          int innate = noWeapon ? 0 : weaponInnate[b][k];
-          rb[k] = Math.max(0, ra[k] - innate);
-
-          if (rb[k] > 0) {
-            zero = false;
-          }
-        }
-
-        long weaponFree;
-        List<SlotAssignment> weaponAssign = List.of();
-
-        if (noWeapon) {
-          if (!zero) {
-            continue;
-          }
-
-          weaponFree = 0L;
-        } else if (!zero) {
-          weaponAssign = new ArrayList<>();
-          int[] effBase = leafTot.clone();
-          applyPacked(effBase, ap);
-          applyPacked(effBase, bp);
-          weaponFree = fillWeaponDecs(b, rb, weaponAssign, effBase);
-
-          if (weaponFree < 0) {
-            continue;
-          }
-        } else {
-          weaponFree = weaponSlotScore[b];
-        }
-        long score = armorFreeScore + weaponFree + amuletBonusScore + weaponOmitScore;
-
-        if (heapFull(state) && score <= state.worst) {
-          continue;
-        }
-
-        Build build = new Build(
-          finalArmor.clone(),
-          new ArrayList<>(armorAssign),
-          weaponAssign,
-          noAmulet ? null : amulets.get(a),
-          noWeapon ? null : weapons.get(b)
-        );
-        offer(state, build, score);
-      }
+      Build build = new Build(
+        finalArmor.clone(),
+        new ArrayList<>(armorAssign),
+        weaponAssign,
+        noAmulet ? null : amulets.get(amuletIdx),
+        noWeapon ? null : weapons.get(b)
+      );
+      offer(state, build, score);
     }
   }
 
@@ -847,7 +903,7 @@ public final class GreedySolver implements Solver {
           decUsefulPoints += c;
         }
       }
-      armorDecUsefulTotal += decUsefulPoints;
+      maxDecoUsefulPoints = Math.max(maxDecoUsefulPoints, decUsefulPoints);
     }
 
     for (int k = 0; k < skillCount; k++) {
