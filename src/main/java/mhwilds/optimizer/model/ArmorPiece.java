@@ -38,7 +38,6 @@ public record ArmorPiece(
     }
   }
 
-  /** Convenience constructor; rarity is set to 0 (unspecified) for fabricated/test data. */
   public ArmorPiece(
     int gameId,
     String setName,
@@ -51,7 +50,6 @@ public record ArmorPiece(
     this(gameId, setName, kind, slots, skills, baseDefense, maxDefense, 0);
   }
 
-  /** Convenience constructor with no set/group bonus skills. */
   public ArmorPiece(
     int gameId,
     String setName,

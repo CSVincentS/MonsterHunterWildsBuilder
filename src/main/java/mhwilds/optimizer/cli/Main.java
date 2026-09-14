@@ -27,12 +27,10 @@ public class Main {
   private static final int DEFAULT_TOP = 1000;
 
   public static void main(String[] args) {
-    for (String arg : args) {
-      if (arg.equals("--help") || arg.equals("-h")) {
-        printUsage();
+    if (containsHelp(args)) {
+      printUsage();
 
-        return;
-      }
+      return;
     }
 
     CliArguments options;
@@ -131,6 +129,16 @@ public class Main {
     }
   }
 
+  public static boolean containsHelp(String[] args) {
+    for (String arg : args) {
+      if (arg.equals("--help") || arg.equals("-h")) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   public record CliArguments(
     String dataDir,
     String configPath,
@@ -181,7 +189,6 @@ public class Main {
           outputPath = stringValue(args, ++i, "--output");
         }
         default -> {
-          // Positional arguments are consumed in order: data-dir first, then config path.
           if (args[i].startsWith("-")) {
             throw new IllegalArgumentException("Unknown option: " + args[i]);
           }
@@ -237,15 +244,24 @@ public class Main {
     long equipmentBonus
   ) {
     if (equipmentSlotRanking) {
+      String breakdown =
+        equipmentBonus > 0
+          ? String.format(
+              "free slots %d, %d omitted x %d bonus",
+              build.freeSlotScore(),
+              build.omittedEquipmentCount(),
+              equipmentBonus
+            )
+          : String.format(
+              "free slots %d, %d omitted",
+              build.freeSlotScore(),
+              build.omittedEquipmentCount()
+            );
       out.printf(
-        "#%d  Equipment-slot score: %d  (free slots %d, " +
-          (equipmentBonus > 0 ? "%d omitted x %d bonus" : "%d omitted") +
-          ")%n",
+        "#%d  Equipment-slot score: %d  (%s)%n",
         rank,
         build.equipmentAwareScore(equipmentBonus),
-        build.freeSlotScore(),
-        build.omittedEquipmentCount(),
-        equipmentBonus
+        breakdown
       );
     } else {
       out.printf("#%d  Free-slot score: %d%n", rank, build.freeSlotScore());
@@ -253,7 +269,7 @@ public class Main {
 
     out.print("  Armor:");
     for (ArmorSlot slot : ArmorSlot.values()) {
-      ArmorPiece piece = build.armorPieces()[slot.ordinal()];
+      ArmorPiece piece = build.armorPiece(slot);
       String name = piece != null ? piece.setName() : "none";
       out.printf(" %s=%s", slot.name().toLowerCase(), name);
     }

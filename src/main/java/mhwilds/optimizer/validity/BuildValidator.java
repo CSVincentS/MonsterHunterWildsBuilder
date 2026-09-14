@@ -3,9 +3,15 @@ package mhwilds.optimizer.validity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import mhwilds.optimizer.model.*;
+import mhwilds.optimizer.model.ArmorPiece;
+import mhwilds.optimizer.model.ArmorSlot;
+import mhwilds.optimizer.model.Build;
+import mhwilds.optimizer.model.Decoration;
+import mhwilds.optimizer.model.Skill;
+import mhwilds.optimizer.model.SlotAssignment;
+import mhwilds.optimizer.model.SlotTarget;
+import mhwilds.optimizer.model.Weapon;
 
-/** Enforces game-rule invariants; returns a problem list, empty when the build is valid. */
 public class BuildValidator {
 
   private final Map<Integer, Skill> skillMap;
@@ -14,7 +20,6 @@ public class BuildValidator {
     this.skillMap = skillMap;
   }
 
-  /** Returns a problem per violated rule, or an empty list when the build is valid. */
   public List<String> validate(Build build) {
     List<String> errors = new ArrayList<>();
 

@@ -6,10 +6,6 @@ import java.util.List;
 import java.util.PriorityQueue;
 import mhwilds.optimizer.model.Build;
 
-/**
- * Score-only heap of up to {@code k} builds that only accepts strictly-better scores at the
- * boundary, ordered best-first by score then total defense.
- */
 final class TopK {
 
   private final int k;
@@ -31,7 +27,6 @@ final class TopK {
     return worst;
   }
 
-  /** True when {@code score} is good enough to displace the current {@link #worst}. */
   boolean accepts(long score) {
     return heap.size() < k || score > worst;
   }

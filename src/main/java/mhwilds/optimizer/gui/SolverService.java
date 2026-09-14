@@ -1,8 +1,8 @@
 package mhwilds.optimizer.gui;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import mhwilds.optimizer.config.GearPoolConfig;
 import mhwilds.optimizer.config.GearPoolResolver;
@@ -14,7 +14,6 @@ import mhwilds.optimizer.ranking.RankingStrategy;
 import mhwilds.optimizer.solver.CatalogSolver;
 import mhwilds.optimizer.solver.SolverPool;
 
-/** Pure solver front-end for the GUI; no Swing types. */
 public class SolverService {
 
   private final GameData data;
@@ -25,10 +24,9 @@ public class SolverService {
 
   public List<String> validate(List<SkillRequirement> requirements, RarityBounds bounds) {
     List<String> errors = new ArrayList<>();
-    Map<String, Integer> names = skillNamesById();
 
     for (SkillRequirement req : requirements) {
-      if (!isKnownSkill(req.skillName(), names)) {
+      if (data.resolveSkillRef(req.skillName()) == null) {
         errors.add("Unknown skill in requirements: " + req.skillName());
       }
     }
@@ -49,40 +47,48 @@ public class SolverService {
     String ranking,
     Long equipmentBonus
   ) {
-    Map<String, Integer> required = new java.util.HashMap<>();
+    Map<String, Integer> required = new HashMap<>();
 
     for (SkillRequirement req : requirements) {
       required.put(req.skillName(), req.minLevel());
     }
 
-    return new GearPoolConfig(
-      Map.copyOf(required),
-      weaponType,
-      new GearPoolConfig.ArmorConfig(
-        source.armor().excludeSets(),
-        source.armor().excludeSkills(),
-        bounds.armorMin(),
-        bounds.armorMax()
-      ),
-      new GearPoolConfig.DecorationConfig(
-        source.decorations().excludeIds(),
-        bounds.decoMin(),
-        bounds.decoMax()
-      ),
-      new GearPoolConfig.AmuletConfig(
-        source.amulets().excludeFamilies(),
-        bounds.amuletMin(),
-        bounds.amuletMax()
-      ),
-      new GearPoolConfig.WeaponConfig(
-        source.weapons().includeIds(),
-        bounds.weaponMin(),
-        bounds.weaponMax()
-      ),
-      source.ignoredSkills(),
-      ranking != null ? ranking : source.ranking(),
-      equipmentBonus != null ? equipmentBonus : source.equipmentSlotBonus()
-    );
+    return source
+      .withRequiredSkills(required)
+      .withWeaponType(weaponType)
+      .withArmor(
+        new GearPoolConfig.ArmorConfig(
+          source.armor().excludeSets(),
+          source.armor().excludeSkills(),
+          bounds.armorMin(),
+          bounds.armorMax()
+        )
+      )
+      .withDecorations(
+        new GearPoolConfig.DecorationConfig(
+          source.decorations().excludeIds(),
+          bounds.decoMin(),
+          bounds.decoMax()
+        )
+      )
+      .withAmulets(
+        new GearPoolConfig.AmuletConfig(
+          source.amulets().excludeFamilies(),
+          bounds.amuletMin(),
+          bounds.amuletMax()
+        )
+      )
+      .withWeapons(
+        new GearPoolConfig.WeaponConfig(
+          source.weapons().includeIds(),
+          bounds.weaponMin(),
+          bounds.weaponMax()
+        )
+      )
+      .withRanking(ranking != null ? ranking : source.ranking())
+      .withEquipmentSlotBonus(
+        equipmentBonus != null ? equipmentBonus : source.equipmentSlotBonus()
+      );
   }
 
   public SolveResult solve(GearPoolConfig config, int computeTopN, int showTopN) {
@@ -108,28 +114,6 @@ public class SolverService {
     long elapsedMillis,
     Map<Integer, Skill> skillMap
   ) {}
-
-  private Map<String, Integer> skillNamesById() {
-    Map<String, Integer> names = new java.util.HashMap<>();
-
-    for (Skill skill : data.skills().values()) {
-      names.put(skill.name().toLowerCase(Locale.ROOT), skill.gameId());
-    }
-
-    return names;
-  }
-
-  private boolean isKnownSkill(String raw, Map<String, Integer> names) {
-    if (names.containsKey(raw.toLowerCase(Locale.ROOT).trim())) {
-      return true;
-    }
-
-    try {
-      return data.skills().containsKey(Integer.parseInt(raw.trim()));
-    } catch (NumberFormatException e) {
-      return false;
-    }
-  }
 
   private void checkInverted(List<String> errors, String category, Integer min, Integer max) {
     if (min != null && max != null && min > max) {

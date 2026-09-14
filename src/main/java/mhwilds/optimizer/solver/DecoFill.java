@@ -5,29 +5,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import mhwilds.optimizer.model.Decoration;
+import mhwilds.optimizer.model.SlotScore;
 
-/**
- * Exact minimum-cost decoration fill for a fixed slot multiset.
- *
- * <p>Given the residual skill levels a build still needs and a multiset of available decoration
- * slots (armor first, weapon second), finds the assignment that uses the smallest total free-slot
- * value, or {@link #INF} when no assignment covers the residual. Slots of the same size are
- * interchangeable, so the problem is a shortest-path over (residual packed, remaining counts
- * packed) states: spending one slot of a group costs {@code 10^size} and reduces the residual by a
- * non-dominated decoration's skills.
- *
- * <p>Skill levels are packed four bits per required non-set skill (see {@link SkillLevels}), and
- * slot counts four bits per (kind, size) group — up to 9 required non-set skills fit in the state
- * long. Repeats are cached so the identical fill is computed once per (slot multiset, residual)
- * pair.
- */
 public final class DecoFill {
 
   static final long INF = Long.MAX_VALUE >> 2;
-  private static final int SIZES = 3;
-  static final int GROUPS = 6;
+  private static final int SIZES = SlotScore.MAX_SLOT_SIZE;
 
-  /** Armor decorations and weapon decorations use {@code group = kind * SIZES + (size - 1)}. */
+  static final int GROUPS = 2 * SIZES;
+
   public static final int ARMOR = 0;
   public static final int WEAPON = 1;
 
@@ -48,11 +34,6 @@ public final class DecoFill {
     }
   }
 
-  /**
-   * @param armorDecos armor decoration pool
-   * @param weaponDecos weapon decoration pool
-   * @param skillPositions maps required non-set skill id to its four-bit packing position
-   */
   @SuppressWarnings("unchecked")
   public DecoFill(
     List<Decoration> armorDecos,
@@ -70,8 +51,8 @@ public final class DecoFill {
     }
 
     for (int size = 1; size <= SIZES; size++) {
-      groupCost[group(ARMOR, size)] = (int) SlotScores.valueOf(size);
-      groupCost[group(WEAPON, size)] = (int) SlotScores.valueOf(size);
+      groupCost[group(ARMOR, size)] = (int) SlotScore.valueOf(size);
+      groupCost[group(WEAPON, size)] = (int) SlotScore.valueOf(size);
     }
 
     add(armorDecos, ARMOR, skillPositions);
@@ -82,19 +63,17 @@ public final class DecoFill {
     }
   }
 
-  /** A fill outcome; {@code steps} is only populated by {@link #fillWithSteps}. */
   public record FillResult(long cost, List<Step> steps) {}
 
   public record Step(int kind, int size, Decoration deco) {}
 
-  /** Minimum consumed slot value covering {@code needPack}, or {@link #INF} when impossible. */
   public long fillCost(long needPack, int[] armorCount, int[] weaponCount) {
     if (SkillLevels.isZero(needPack, n)) {
       return 0;
     }
 
     long counts = packCounts(armorCount, weaponCount);
-    long key = (counts << (4 * n)) | needPack;
+    long key = (counts << (SkillLevels.BITS_PER_SKILL * n)) | needPack;
     Long cached = cache.get(key);
 
     if (cached != null) {
@@ -107,7 +86,6 @@ public final class DecoFill {
     return cost;
   }
 
-  /** Minimum fill plus the concrete decoration-per-slot assignment (uncached). */
   public FillResult fillWithSteps(long needPack, int[] armorCount, int[] weaponCount) {
     if (SkillLevels.isZero(needPack, n)) {
       return new FillResult(0, List.of());
@@ -124,8 +102,10 @@ public final class DecoFill {
     long counts = 0;
 
     for (int size = 1; size <= SIZES; size++) {
-      counts |= (long) (armorCount[size - 1] & 0xF) << (4 * group(ARMOR, size));
-      counts |= (long) (weaponCount[size - 1] & 0xF) << (4 * group(WEAPON, size));
+      counts |=
+        (long) (armorCount[size - 1] & 0xF) << (SkillLevels.NIBBLE_BITS * group(ARMOR, size));
+      counts |=
+        (long) (weaponCount[size - 1] & 0xF) << (SkillLevels.NIBBLE_BITS * group(WEAPON, size));
     }
 
     return counts;
@@ -176,9 +156,9 @@ public final class DecoFill {
   private static boolean dominates(long b, long a) {
     boolean strict = false;
 
-    for (int pos = 0; pos < 16; pos++) {
-      int bv = (int) ((b >>> (4 * pos)) & 0xF);
-      int av = (int) ((a >>> (4 * pos)) & 0xF);
+    for (int pos = 0; pos < SkillLevels.MAX_PACKED_SKILLS; pos++) {
+      int bv = (int) ((b >>> (SkillLevels.BITS_PER_SKILL * pos)) & 0xF);
+      int av = (int) ((a >>> (SkillLevels.BITS_PER_SKILL * pos)) & 0xF);
 
       if (bv < av) {
         return false;
@@ -200,7 +180,7 @@ public final class DecoFill {
     Map<Long, Long> prevState = wantSteps ? new HashMap<>() : null;
     Map<Long, int[]> prevStep = wantSteps ? new HashMap<>() : null;
 
-    long start = (counts << (4 * n)) | needPack;
+    long start = (counts << (SkillLevels.BITS_PER_SKILL * n)) | needPack;
     dist.put(start, 0L);
     queue.add(new long[] { 0, start });
 
@@ -224,25 +204,25 @@ public final class DecoFill {
         break;
       }
 
-      long countsLeft = state >>> (4 * n);
+      long countsLeft = state >>> (SkillLevels.BITS_PER_SKILL * n);
 
       for (int g = 0; g < GROUPS; g++) {
-        int count = (int) ((countsLeft >>> (4 * g)) & 0xF);
+        int count = (int) ((countsLeft >>> (SkillLevels.NIBBLE_BITS * g)) & 0xF);
 
         if (count == 0 || groups[g].isEmpty()) {
           continue;
         }
 
-        long newCounts = countsLeft - (1L << (4 * g));
+        long newCounts = countsLeft - (1L << (SkillLevels.NIBBLE_BITS * g));
 
-        for (int d = 0; d < groups[g].size(); d++) {
-          long newNeed = SkillLevels.sub(need, groups[g].get(d).pack);
+        for (int di = 0; di < groups[g].size(); di++) {
+          long newNeed = SkillLevels.sub(need, groups[g].get(di).pack);
 
           if (newNeed == need) {
             continue;
           }
 
-          long next = (newCounts << (4 * n)) | newNeed;
+          long next = (newCounts << (SkillLevels.BITS_PER_SKILL * n)) | newNeed;
           long nextCost = cost + groupCost[g];
 
           if (nextCost < dist.getOrDefault(next, INF)) {
@@ -251,7 +231,7 @@ public final class DecoFill {
 
             if (wantSteps) {
               prevState.put(next, state);
-              prevStep.put(next, new int[] { g, d });
+              prevStep.put(next, new int[] { g, di });
             }
           }
         }

@@ -9,26 +9,12 @@ import java.util.TreeSet;
 import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.model.Build;
+import mhwilds.optimizer.model.SetBonusActivation;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.solver.ArmorAggregates.Aggregate;
 import mhwilds.optimizer.solver.GearOptions.AmuletOpt;
 import mhwilds.optimizer.solver.GearOptions.WeaponOpt;
 
-/**
- * Exact top-K solver by free-slot score over a Pareto-reduced armor pool.
- *
- * <p>Armor combinations collapse into aggregate signatures — capped required-skill levels, slot
- * multiset, set-bonus piece counts, worn-slot subset — keeping only the highest-defense
- * representative of each. Aggregates are evaluated best-first by an upper bound on their achievable
- * score, and each evaluation is a joint exact armor+weapon decoration fill (see {@link DecoFill})
- * over every relevant amulet and weapon. This spills any residual skill to the amulet or weapon
- * side and finds the minimum consumed slot value, so it never misses a reachable build.
- *
- * <p>This class only orchestrates the pipeline; each stage has a single responsibility and lives in
- * its own class: {@link GearOptions} (amulet/weapon pruning), {@link SearchBounds} (upper bounds),
- * {@link ArmorAggregates} (armor DP), {@link AggregateEvaluator} (per-aggregate exact fill), {@link
- * TopK} (result selection).
- */
 public final class CatalogSolver implements Solver {
 
   private final int k;
@@ -112,7 +98,7 @@ public final class CatalogSolver implements Solver {
       Map<Integer, Integer> ranks = thresholds.setSkillRanksOf(id);
       requiredSet[j] = thresholds.required(id);
 
-      if (ArmorAggregates.activationLevel(ranks, ArmorSlot.values().length) < requiredSet[j]) {
+      if (SetBonusActivation.levelFor(ArmorSlot.values().length, ranks) < requiredSet[j]) {
         return List.of();
       }
 

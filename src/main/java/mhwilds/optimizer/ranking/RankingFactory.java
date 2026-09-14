@@ -9,10 +9,6 @@ public class RankingFactory {
     return create(name, 0L);
   }
 
-  /**
-   * Creates the named ranking. When the strategy is {@link #FREE_EQUIPMENT_SLOTS}, {@code bonus}
-   * is the point value of each omitted equipment slot; other strategies ignore it.
-   */
   public static RankingStrategy create(String name, long bonus) {
     return switch (name) {
       case FREE_SLOTS -> new FreeSlotRanking();
@@ -21,7 +17,6 @@ public class RankingFactory {
     };
   }
 
-  /** True when the strategy scores on free equipment slots (omitted gear) as well as deco slots. */
   public static boolean isEquipmentSlotRanking(String name) {
     return FREE_EQUIPMENT_SLOTS.equals(name);
   }

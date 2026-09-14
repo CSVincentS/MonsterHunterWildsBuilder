@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.table.AbstractTableModel;
 
-/** Editable two-column table: skill name (String) and minimum level (Integer). */
 public class SkillRequirementsTableModel extends AbstractTableModel {
 
   private static final String[] COLUMNS = { "Skill", "Min level" };
@@ -74,7 +73,7 @@ public class SkillRequirementsTableModel extends AbstractTableModel {
         );
       }
     } catch (IllegalArgumentException ignored) {
-      return; // keep the previous value on bad input (non-numeric, blank name, minLevel < 1)
+      return;
     }
 
     fireTableCellUpdated(rowIndex, columnIndex);

@@ -7,7 +7,6 @@ import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.model.Build;
 
-/** Read-only table of ranked builds. */
 public class ResultsTableModel extends AbstractTableModel {
 
   private static final String[] COLUMNS = {
@@ -29,7 +28,6 @@ public class ResultsTableModel extends AbstractTableModel {
     this.builds = List.copyOf(builds);
   }
 
-  /** Switches the Score column to a different metric (e.g. the equipment-aware rating). */
   public void setScoreFunc(ToLongFunction<Build> scoreFunc) {
     this.scoreFunc = scoreFunc;
     fireTableDataChanged();
@@ -78,7 +76,7 @@ public class ResultsTableModel extends AbstractTableModel {
   }
 
   private static String armorName(Build b, ArmorSlot slot) {
-    ArmorPiece piece = b.armorPieces()[slot.ordinal()];
+    ArmorPiece piece = b.armorPiece(slot);
 
     return piece != null ? piece.setName() : "none";
   }

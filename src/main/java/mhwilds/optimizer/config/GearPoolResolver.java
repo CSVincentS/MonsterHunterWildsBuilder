@@ -1,12 +1,21 @@
 package mhwilds.optimizer.config;
 
-import java.util.*;
-import java.util.Locale;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import mhwilds.optimizer.loader.GameData;
-import mhwilds.optimizer.model.*;
+import mhwilds.optimizer.model.AmuletRank;
+import mhwilds.optimizer.model.ArmorPiece;
+import mhwilds.optimizer.model.Decoration;
+import mhwilds.optimizer.model.Skill;
+import mhwilds.optimizer.model.SlotTarget;
+import mhwilds.optimizer.model.Weapon;
 import mhwilds.optimizer.solver.SkillThresholds;
 import mhwilds.optimizer.solver.SolverPool;
 
@@ -205,12 +214,6 @@ public class GearPoolResolver {
     Set<String> excludeSets = new HashSet<>(config.armor().excludeSets());
     Set<String> excludeSkillNames = new HashSet<>(config.armor().excludeSkills());
 
-    Map<Integer, String> idToName = data
-      .skills()
-      .entrySet()
-      .stream()
-      .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().name()));
-
     Map<String, Integer> nameToId = data
       .skills()
       .values()
@@ -321,34 +324,13 @@ public class GearPoolResolver {
   }
 
   private SkillThresholds buildThresholds(GearPoolConfig config) {
-    Map<String, Integer> skillNameToId = new HashMap<>();
-
-    for (Skill skill : data.skills().values()) {
-      skillNameToId.put(skill.name().toLowerCase(Locale.ROOT), skill.gameId());
-    }
-
-    // Keys are strings: a numeric game_id or an English skill name, resolved case-insensitively.
     Map<Integer, Integer> required = new HashMap<>();
 
     for (Map.Entry<String, Integer> entry : config.requiredSkills().entrySet()) {
-      String key = entry.getKey();
-      int skillId;
+      Integer skillId = data.resolveSkillRef(entry.getKey());
 
-      try {
-        skillId = Integer.parseInt(key);
-      } catch (NumberFormatException e) {
-        Integer byName = skillNameToId.get(key.toLowerCase(Locale.ROOT).trim());
-
-        if (byName == null) {
-          System.err.println("Warning: unknown skill in required_skills: " + key);
-          continue;
-        }
-
-        skillId = byName;
-      }
-
-      if (!data.skills().containsKey(skillId)) {
-        System.err.println("Warning: unknown skill in required_skills: " + key);
+      if (skillId == null) {
+        System.err.println("Warning: unknown skill in required_skills: " + entry.getKey());
         continue;
       }
 

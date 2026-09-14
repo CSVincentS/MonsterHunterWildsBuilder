@@ -19,7 +19,6 @@ public record AmuletRank(
     }
   }
 
-  /** Convenience constructor; rarity is set to 0 (unspecified) for fabricated/test data. */
   public AmuletRank(int familyGameId, int rankLevel, String name, Map<Integer, Integer> skills) {
     this(familyGameId, rankLevel, name, skills, 0);
   }

@@ -26,23 +26,19 @@ class IntegrationTest {
   void endToEndPipelineProducesValidTopKBuilds() {
     long start = System.currentTimeMillis();
 
-    // Load real data
     GameData data = new GameDataLoader("data").load();
     GearPoolConfig config = GearPoolConfig.load("src/main/resources/default-config.json");
     SolverPool pool = new GearPoolResolver(data).resolve(config);
 
-    // Solve
     CatalogSolver solver = new CatalogSolver();
     List<Build> results = solver.solve(pool);
 
     long elapsed = System.currentTimeMillis() - start;
 
-    // 1. Completes in reasonable time
     assertThat(elapsed)
       .as("Solver should complete within 30 seconds (was %d ms)", elapsed)
       .isLessThan(30_000);
 
-    // 2. Returns a non-empty list of expected size
     assertThat(results)
       .as("Solver should find at least 1000 builds, found %d", results.size())
       .hasSizeGreaterThanOrEqualTo(1000);
@@ -52,7 +48,6 @@ class IntegrationTest {
     List<Build> ranked = results.stream().sorted(ranking).toList();
     assertThat(ranked).hasSizeGreaterThanOrEqualTo(1000);
 
-    // 3. Every build passes BuildValidator
     BuildValidator validator = new BuildValidator(pool.skillMap());
     long invalidCount = ranked
       .stream()
@@ -63,7 +58,6 @@ class IntegrationTest {
       .as("All builds must pass BuildValidator (found %d invalid)", invalidCount)
       .isZero();
 
-    // 4. Every build satisfies the seed skill thresholds
     for (Build build : ranked) {
       assertThat(build.totalSkillLevel(CONSTITUTION_ID))
         .as("Constitution must be >= 5 in every build")
@@ -73,16 +67,13 @@ class IntegrationTest {
         .isGreaterThanOrEqualTo(3);
     }
 
-    // 5. Top-1 free-slot score is at least 10200
     Build best = ranked.get(0);
     assertThat(best.freeSlotScore())
       .as("Top-1 free-slot score should be >= 10200 (was %d)", best.freeSlotScore())
       .isGreaterThanOrEqualTo(10200);
 
-    // 6. Default config optimizes the bow kind
     assertThat(best.weapon().kind()).isEqualTo("bow");
 
-    // Verify the ranking is strictly descending
     for (int i = 1; i < ranked.size(); i++) {
       assertThat(ranked.get(i - 1).freeSlotScore()).isGreaterThanOrEqualTo(
         ranked.get(i).freeSlotScore()

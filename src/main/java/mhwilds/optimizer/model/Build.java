@@ -11,6 +11,10 @@ public record Build(
   AmuletRank amuletRank,
   Weapon weapon
 ) {
+  public ArmorPiece armorPiece(ArmorSlot slot) {
+    return armorPieces[slot.ordinal()];
+  }
+
   public Map<Integer, Integer> combinedSkills() {
     Map<Integer, Integer> total = new HashMap<>();
 
@@ -67,10 +71,6 @@ public record Build(
     return total;
   }
 
-  /**
-   * Resolves set-bonus and group-bonus skills present on worn pieces, activation level 0 if not
-   * met.
-   */
   public Map<Integer, Integer> setBonusSkills() {
     Map<Integer, Integer> counts = new HashMap<>();
     Map<Integer, Map<Integer, Integer>> thresholds = new HashMap<>();
@@ -87,16 +87,15 @@ public record Build(
     Map<Integer, Integer> all = new HashMap<>();
 
     for (Map.Entry<Integer, Integer> entry : counts.entrySet()) {
-      all.put(entry.getKey(), maxLevelAchieved(entry.getValue(), thresholds.get(entry.getKey())));
+      all.put(
+        entry.getKey(),
+        SetBonusActivation.levelFor(entry.getValue(), thresholds.get(entry.getKey()))
+      );
     }
 
     return all;
   }
 
-  /**
-   * Resolves set-bonus and group-bonus skills actually active (activation level > 0) on worn
-   * pieces.
-   */
   public Map<Integer, Integer> activeSetBonusSkills() {
     Map<Integer, Integer> active = setBonusSkills();
     active.values().removeIf(v -> v <= 0);
@@ -116,22 +115,6 @@ public record Build(
 
     counts.merge(bonusId, 1, Integer::sum);
     thresholds.putIfAbsent(bonusId, ranks);
-  }
-
-  private static int maxLevelAchieved(int pieceCount, Map<Integer, Integer> ranks) {
-    if (ranks == null) {
-      return 0;
-    }
-
-    int best = 0;
-
-    for (Map.Entry<Integer, Integer> rank : ranks.entrySet()) {
-      if (pieceCount >= rank.getKey() && rank.getValue() > best) {
-        best = rank.getValue();
-      }
-    }
-
-    return best;
   }
 
   public int totalSlotCount() {
@@ -158,7 +141,7 @@ public record Build(
     long score = 0;
 
     for (ArmorSlot slot : ArmorSlot.values()) {
-      ArmorPiece piece = armorPieces[slot.ordinal()];
+      ArmorPiece piece = armorPiece(slot);
 
       if (piece == null) {
         continue;
@@ -174,7 +157,7 @@ public record Build(
 
       for (int i = 0; i < piece.slots().length; i++) {
         if (!occupied[i]) {
-          score += (long) Math.pow(10, piece.slots()[i]);
+          score += SlotScore.valueOf(piece.slots()[i]);
         }
       }
     }
@@ -188,7 +171,7 @@ public record Build(
 
       for (int i = 0; i < weapon.slots().length; i++) {
         if (!weaponOccupied[i]) {
-          score += (long) Math.pow(10, weapon.slots()[i]);
+          score += SlotScore.valueOf(weapon.slots()[i]);
         }
       }
     }
@@ -196,7 +179,6 @@ public record Build(
     return score;
   }
 
-  /** Number of equipment slots left empty: any armor piece, the weapon, or the amulet. */
   public int omittedEquipmentCount() {
     int omitted = 0;
 
@@ -217,11 +199,6 @@ public record Build(
     return omitted;
   }
 
-  /**
-   * Free-slot score with equipment omission rewarded: each empty equipment slot contributes {@code
-   * bonus} points, so a lean build that needs fewer pieces can outrank a full build carrying free
-   * level-3 decoration slots.
-   */
   public long equipmentAwareScore(long bonus) {
     return freeSlotScore() + bonus * omittedEquipmentCount();
   }

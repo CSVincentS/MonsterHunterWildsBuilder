@@ -22,16 +22,8 @@ import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.SlotTarget;
 import mhwilds.optimizer.model.Weapon;
 
-/**
- * Loads the game data snapshot from {@code data/} into model objects. Skill dictionaries carry
- * skill ids as string keys (e.g. {@code {"-1689391744": 2}}); these are parsed to int. Armor sets
- * are flattened into individual pieces and amulet families into individual ranks. Every skill
- * referenced by a loaded source must exist in Skill.json, otherwise loading fails with a clear
- * message.
- */
 public class GameDataLoader {
 
-  /** Weapon JSON keys consumed by the optimizer; everything else lands in extraFields. */
   private static final Set<String> WEAPON_CORE_KEYS = Set.of(
     "game_id",
     "names",
@@ -96,10 +88,6 @@ public class GameDataLoader {
     return data;
   }
 
-  /**
-   * Maps every set/group bonus skill id to its activation thresholds ({@code {piecesRequired:
-   * skillLevel}}). Skill id == bonus id (verified across data).
-   */
   private static Map<Integer, Map<Integer, Integer>> collectSetSkillRanks(
     List<ArmorPiece> armorPieces
   ) {
@@ -186,7 +174,6 @@ public class GameDataLoader {
     return pieces;
   }
 
-  /** Set/group bonus skill id from the bonus object (preferred) or the bare id field. */
   private static int bonusId(JsonNode set, String objField, String idField) {
     JsonNode obj = set.get(objField);
 
@@ -199,7 +186,6 @@ public class GameDataLoader {
     return id == null || id.isNull() ? 0 : id.asInt();
   }
 
-  /** Rank thresholds for a bonus: {@code {piecesRequired: skillLevel}}. */
   private static Map<Integer, Integer> bonusRanks(JsonNode bonus) {
     if (bonus == null || bonus.isNull() || !bonus.has("ranks")) {
       return Map.of();
@@ -332,57 +318,51 @@ public class GameDataLoader {
     StringBuilder orphans = new StringBuilder();
 
     for (ArmorPiece piece : data.armorPieces()) {
-      for (int skillId : piece.skills().keySet()) {
-        if (!data.skills().containsKey(skillId)) {
-          orphans
-            .append("\n  armor piece ")
-            .append(piece.gameId())
-            .append(" references unknown skill ")
-            .append(skillId);
-        }
-      }
+      checkSkillRefs(orphans, data.skills(), "armor piece", piece.gameId(), piece.skills());
     }
 
     for (Decoration decoration : data.decorations()) {
-      for (int skillId : decoration.skills().keySet()) {
-        if (!data.skills().containsKey(skillId)) {
-          orphans
-            .append("\n  decoration ")
-            .append(decoration.gameId())
-            .append(" references unknown skill ")
-            .append(skillId);
-        }
-      }
+      checkSkillRefs(
+        orphans,
+        data.skills(),
+        "decoration",
+        decoration.gameId(),
+        decoration.skills()
+      );
     }
 
     for (AmuletRank rank : data.amuletRanks()) {
-      for (int skillId : rank.skills().keySet()) {
-        if (!data.skills().containsKey(skillId)) {
-          orphans
-            .append("\n  amulet rank ")
-            .append(rank.familyGameId())
-            .append(" references unknown skill ")
-            .append(skillId);
-        }
-      }
+      checkSkillRefs(orphans, data.skills(), "amulet rank", rank.familyGameId(), rank.skills());
     }
 
     for (Weapon weapon : data.weapons()) {
-      for (int skillId : weapon.skills().keySet()) {
-        if (!data.skills().containsKey(skillId)) {
-          orphans
-            .append("\n  weapon ")
-            .append(weapon.gameId())
-            .append(" references unknown skill ")
-            .append(skillId);
-        }
-      }
+      checkSkillRefs(orphans, data.skills(), "weapon", weapon.gameId(), weapon.skills());
     }
 
     if (!orphans.isEmpty()) {
       throw new IllegalStateException(
         "Game data references skills not present in Skill.json:" + orphans
       );
+    }
+  }
+
+  private static void checkSkillRefs(
+    StringBuilder orphans,
+    Map<Integer, Skill> known,
+    String kind,
+    int ownerId,
+    Map<Integer, Integer> skills
+  ) {
+    for (int skillId : skills.keySet()) {
+      if (!known.containsKey(skillId)) {
+        orphans
+          .append("\n  ")
+          .append(kind)
+          .append(" ")
+          .append(ownerId)
+          .append(" references unknown skill ")
+          .append(skillId);
+      }
     }
   }
 

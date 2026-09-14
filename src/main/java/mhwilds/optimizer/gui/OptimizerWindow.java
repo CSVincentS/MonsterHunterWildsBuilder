@@ -37,7 +37,6 @@ import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.Weapon;
 import mhwilds.optimizer.ranking.RankingFactory;
 
-/** Main Swing window: edit requirements/rarity, solve, and browse ranked builds. */
 public class OptimizerWindow extends JFrame {
 
   private final GameData data;
@@ -46,6 +45,16 @@ public class OptimizerWindow extends JFrame {
 
   private final SkillRequirementsTableModel skillModel = new SkillRequirementsTableModel();
   private final ResultsTableModel resultsModel = new ResultsTableModel(List.of());
+
+  private static final int ARMOR_MIN = 0;
+  private static final int ARMOR_MAX = 1;
+  private static final int DECO_MIN = 2;
+  private static final int DECO_MAX = 3;
+  private static final int AMULET_MIN = 4;
+  private static final int AMULET_MAX = 5;
+  private static final int WEAPON_MIN = 6;
+  private static final int WEAPON_MAX = 7;
+  private static final int RARITY_FIELD_COUNT = 8;
 
   private final JSpinner[] raritySpinners = createRaritySpinners();
   private final String[] rarityLabels = {
@@ -113,7 +122,7 @@ public class OptimizerWindow extends JFrame {
   }
 
   private static JSpinner[] createRaritySpinners() {
-    JSpinner[] spinners = new JSpinner[8];
+    JSpinner[] spinners = new JSpinner[RARITY_FIELD_COUNT];
 
     for (int i = 0; i < spinners.length; i++) {
       spinners[i] = new JSpinner(new SpinnerNumberModel(0, 0, 10, 1));
@@ -151,9 +160,7 @@ public class OptimizerWindow extends JFrame {
       if (skill != null) {
         return skill.name();
       }
-    } catch (NumberFormatException ignored) {
-      // name key — pass through
-    }
+    } catch (NumberFormatException ignored) {}
     return key;
   }
 
@@ -164,16 +171,15 @@ public class OptimizerWindow extends JFrame {
   }
 
   private void seedRarityFrom(GearPoolConfig config) {
-    Integer[] values = {
-      config.armor().minRarity(),
-      config.armor().maxRarity(),
-      config.decorations().minRarity(),
-      config.decorations().maxRarity(),
-      config.amulets().minRarity(),
-      config.amulets().maxRarity(),
-      config.weapons().minRarity(),
-      config.weapons().maxRarity(),
-    };
+    Integer[] values = new Integer[RARITY_FIELD_COUNT];
+    values[ARMOR_MIN] = config.armor().minRarity();
+    values[ARMOR_MAX] = config.armor().maxRarity();
+    values[DECO_MIN] = config.decorations().minRarity();
+    values[DECO_MAX] = config.decorations().maxRarity();
+    values[AMULET_MIN] = config.amulets().minRarity();
+    values[AMULET_MAX] = config.amulets().maxRarity();
+    values[WEAPON_MIN] = config.weapons().minRarity();
+    values[WEAPON_MAX] = config.weapons().maxRarity();
 
     for (int i = 0; i < raritySpinners.length; i++) {
       raritySpinners[i].setValue(values[i] != null ? values[i] : 0);
@@ -367,7 +373,7 @@ public class OptimizerWindow extends JFrame {
   }
 
   private RarityBounds rarityBounds() {
-    Integer[] values = new Integer[raritySpinners.length];
+    Integer[] values = new Integer[RARITY_FIELD_COUNT];
 
     for (int i = 0; i < raritySpinners.length; i++) {
       int v = (Integer) raritySpinners[i].getValue();
@@ -375,18 +381,18 @@ public class OptimizerWindow extends JFrame {
     }
 
     return new RarityBounds(
-      values[0],
-      values[1],
-      values[2],
-      values[3],
-      values[4],
-      values[5],
-      values[6],
-      values[7]
+      values[ARMOR_MIN],
+      values[ARMOR_MAX],
+      values[DECO_MIN],
+      values[DECO_MAX],
+      values[AMULET_MIN],
+      values[AMULET_MAX],
+      values[WEAPON_MIN],
+      values[WEAPON_MAX]
     );
   }
 
-  private void loadConfig() {
+  private String chooseConfigFile(boolean save) {
     JFileChooser fc = new JFileChooser();
     File configsDir = new File("configs");
 
@@ -394,49 +400,56 @@ public class OptimizerWindow extends JFrame {
       fc.setCurrentDirectory(configsDir);
     }
 
-    if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-      try {
-        GearPoolConfig loaded = GearPoolConfig.load(fc.getSelectedFile().toString());
-        baseConfig = loaded;
-        seedSkillsFrom(loaded);
-        seedRarityFrom(loaded);
+    int result = save ? fc.showSaveDialog(this) : fc.showOpenDialog(this);
 
-        if (loaded.weaponType() != null) {
-          weaponCombo.setSelectedItem(loaded.weaponType());
-        }
+    return result == JFileChooser.APPROVE_OPTION ? fc.getSelectedFile().toString() : null;
+  }
 
-        resultsModel.setBuilds(List.of());
-        detailArea.setText("");
-        status("Loaded " + fc.getSelectedFile().getName(), false);
-      } catch (RuntimeException e) {
-        status("Load failed: " + e.getMessage(), true);
+  private void loadConfig() {
+    String path = chooseConfigFile(false);
+
+    if (path == null) {
+      return;
+    }
+
+    try {
+      GearPoolConfig loaded = GearPoolConfig.load(path);
+      baseConfig = loaded;
+      seedSkillsFrom(loaded);
+      seedRarityFrom(loaded);
+
+      if (loaded.weaponType() != null) {
+        weaponCombo.setSelectedItem(loaded.weaponType());
       }
+
+      resultsModel.setBuilds(List.of());
+      detailArea.setText("");
+      status("Loaded " + new File(path).getName(), false);
+    } catch (RuntimeException e) {
+      status("Load failed: " + e.getMessage(), true);
     }
   }
 
   private void saveConfig() {
-    JFileChooser fc = new JFileChooser();
-    File configsDir = new File("configs");
+    String path = chooseConfigFile(true);
 
-    if (configsDir.isDirectory()) {
-      fc.setCurrentDirectory(configsDir);
+    if (path == null) {
+      return;
     }
 
-    if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-      try {
-        GearPoolConfig out = service.buildConfig(
-          baseConfig,
-          String.valueOf(weaponCombo.getSelectedItem()),
-          skillModel.requirements(),
-          rarityBounds(),
-          String.valueOf(rankingCombo.getSelectedItem()),
-          ((Number) equipmentBonusSpinner.getValue()).longValue()
-        );
-        out.save(fc.getSelectedFile().toString());
-        status("Saved " + fc.getSelectedFile().getName(), false);
-      } catch (RuntimeException e) {
-        status("Save failed: " + e.getMessage(), true);
-      }
+    try {
+      GearPoolConfig out = service.buildConfig(
+        baseConfig,
+        String.valueOf(weaponCombo.getSelectedItem()),
+        skillModel.requirements(),
+        rarityBounds(),
+        String.valueOf(rankingCombo.getSelectedItem()),
+        ((Number) equipmentBonusSpinner.getValue()).longValue()
+      );
+      out.save(path);
+      status("Saved " + new File(path).getName(), false);
+    } catch (RuntimeException e) {
+      status("Save failed: " + e.getMessage(), true);
     }
   }
 

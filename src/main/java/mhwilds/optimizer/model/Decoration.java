@@ -24,7 +24,6 @@ public record Decoration(
     }
   }
 
-  /** Convenience constructor; rarity is set to 0 (unspecified) for fabricated/test data. */
   public Decoration(
     int gameId,
     String name,

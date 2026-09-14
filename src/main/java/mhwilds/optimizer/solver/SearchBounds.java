@@ -6,15 +6,14 @@ import java.util.Map;
 import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.model.Decoration;
+import mhwilds.optimizer.model.SlotScore;
 import mhwilds.optimizer.solver.GearOptions.AmuletOpt;
 import mhwilds.optimizer.solver.GearOptions.WeaponOpt;
 
-/**
- * Per-skill and per-slot maxima over every sourced option, plus the sound upper bounds derived
- * from them: a coarse residual ceiling, the per-slot-size deco coverage, and the suffix sums used
- * to prune partially-built aggregates.
- */
 final class SearchBounds {
+
+  private static final int ARMOR_SLOT_COUNT = ArmorSlot.values().length;
+  private static final int SLOT_SIZES = SlotScore.MAX_SLOT_SIZE;
 
   private final int n;
   private final int[] required;
@@ -42,12 +41,12 @@ final class SearchBounds {
     this.bestWeaponInnate = new long[n];
     this.bestArmorDeco = new long[n];
     this.bestWeaponDeco = new long[n];
-    this.armorDecoBestTotal = new int[3];
-    this.weaponDecoBestTotal = new int[3];
-    this.armorDecoBest = new int[3][n];
-    this.weaponDecoBest = new int[3][n];
-    this.suffixSlots = new int[6];
-    this.suffixSkill = new int[6][n];
+    this.armorDecoBestTotal = new int[SLOT_SIZES];
+    this.weaponDecoBestTotal = new int[SLOT_SIZES];
+    this.armorDecoBest = new int[SLOT_SIZES][n];
+    this.weaponDecoBest = new int[SLOT_SIZES][n];
+    this.suffixSlots = new int[ARMOR_SLOT_COUNT + 1];
+    this.suffixSkill = new int[ARMOR_SLOT_COUNT + 1][n];
   }
 
   void compute(
@@ -95,10 +94,10 @@ final class SearchBounds {
       addDeco(d, weaponDecoBest, weaponDecoBestTotal);
     }
 
-    int[][] posMaxSkill = new int[5][n];
-    int[] posMaxSlots = new int[5];
+    int[][] posMaxSkill = new int[ARMOR_SLOT_COUNT][n];
+    int[] posMaxSlots = new int[ARMOR_SLOT_COUNT];
 
-    for (int pos = 0; pos < 5; pos++) {
+    for (int pos = 0; pos < ARMOR_SLOT_COUNT; pos++) {
       ArmorSlot slot = ArmorSlot.values()[pos];
 
       for (ArmorPiece p : bySlot.get(slot)) {
@@ -111,7 +110,7 @@ final class SearchBounds {
       }
     }
 
-    for (int pos = 4; pos >= 0; pos--) {
+    for (int pos = ARMOR_SLOT_COUNT - 1; pos >= 0; pos--) {
       suffixSlots[pos] = suffixSlots[pos + 1] + posMaxSlots[pos];
 
       for (int i = 0; i < n; i++) {
@@ -120,29 +119,26 @@ final class SearchBounds {
     }
   }
 
-  /** Best score an aggregate's remaining residual could ever reach from its armor deco slots. */
   long residualCeiling(int skill, int[] armorCount) {
     return (
       bestAmu[skill] +
       bestWeaponInnate[skill] +
       slotCover(armorCount, armorDecoBest, skill) +
-      3L * bestWeaponDeco[skill]
+      SLOT_SIZES * bestWeaponDeco[skill]
     );
   }
 
-  /** Whether skill {@code skill}, at {@code innate}, can still be covered once every slot is spent. */
   boolean canStillMeet(int skill, int innate, int totalSlots) {
     return (
       innate +
         bestAmu[skill] +
         bestWeaponInnate[skill] +
         (long) totalSlots * bestArmorDeco[skill] +
-        3L * bestWeaponDeco[skill] >=
+        SLOT_SIZES * bestWeaponDeco[skill] >=
       required[skill]
     );
   }
 
-  /** Same as {@link #canStillMeet}, but also crediting the suffix positions not yet chosen. */
   boolean canStillMeet(int pos, int skill, int innate, int totalSlots) {
     return (
       innate +
@@ -150,27 +146,21 @@ final class SearchBounds {
         bestAmu[skill] +
         bestWeaponInnate[skill] +
         (long) (totalSlots + suffixSlots[pos]) * bestArmorDeco[skill] +
-        3L * bestWeaponDeco[skill] >=
+        SLOT_SIZES * bestWeaponDeco[skill] >=
       required[skill]
     );
   }
 
-  /** Total max deco levels for one skill over a slot-count multiset (sound over-estimate). */
   static long slotCover(int[] counts, int[][] best, int skill) {
     long cover = 0;
 
-    for (int s = 0; s < 3; s++) {
+    for (int s = 0; s < SLOT_SIZES; s++) {
       cover += (long) counts[s] * best[s][skill];
     }
 
     return cover;
   }
 
-  /**
-   * Fast, provably-needed pre-filter before the exact fill: whether the residual could still be
-   * covered by the available slots at all. Both prunes are sound necessary conditions — a real
-   * deco assignment satisfies them, so a build is never wrongly dropped.
-   */
   boolean fillFeasible(long needW, int[] armorCount, int[] wepCount) {
     long needPoints = 0;
 
@@ -190,7 +180,7 @@ final class SearchBounds {
 
     long slotPoints = 0;
 
-    for (int s = 0; s < 3; s++) {
+    for (int s = 0; s < SLOT_SIZES; s++) {
       slotPoints +=
         (long) armorCount[s] * armorDecoBestTotal[s] + (long) wepCount[s] * weaponDecoBestTotal[s];
     }
@@ -198,12 +188,11 @@ final class SearchBounds {
     return needPoints <= slotPoints;
   }
 
-  /** Best free-slot score any build over this aggregate could reach. */
   long upperBound(long slotValue, int worn, long bonus) {
     long upper = slotValue;
 
     if (bonus > 0) {
-      upper += bonus * (5L - worn);
+      upper += bonus * (ARMOR_SLOT_COUNT - worn);
       upper += bonus;
       upper += Math.max(weaponMaxSlotValue, bonus);
     } else {
@@ -226,7 +215,7 @@ final class SearchBounds {
       total += SkillLevels.levelAt(pack, i);
     }
 
-    for (int s = d.level() - 1; s < 3; s++) {
+    for (int s = d.level() - 1; s < SLOT_SIZES; s++) {
       for (int i = 0; i < n; i++) {
         best[s][i] = Math.max(best[s][i], SkillLevels.levelAt(pack, i));
       }

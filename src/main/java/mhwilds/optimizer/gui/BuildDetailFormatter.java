@@ -10,7 +10,6 @@ import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.SlotAssignment;
 
-/** Renders a Build as compact table text and a full detail block. */
 public final class BuildDetailFormatter {
 
   private BuildDetailFormatter() {}
@@ -61,7 +60,7 @@ public final class BuildDetailFormatter {
     sb.append("Armor:\n");
 
     for (ArmorSlot slot : ArmorSlot.values()) {
-      ArmorPiece piece = build.armorPieces()[slot.ordinal()];
+      ArmorPiece piece = build.armorPiece(slot);
 
       if (piece == null) {
         continue;

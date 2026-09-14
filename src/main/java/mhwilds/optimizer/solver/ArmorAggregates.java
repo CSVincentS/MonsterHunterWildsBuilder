@@ -7,10 +7,12 @@ import java.util.List;
 import java.util.Map;
 import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.ArmorSlot;
+import mhwilds.optimizer.model.SetBonusActivation;
+import mhwilds.optimizer.model.SlotScore;
 
 /**
- * Collapses armor combinations into aggregate signatures — capped required-skill levels, slot
- * multiset, set-bonus piece counts, worn-slot subset — keeping only the highest-defense
+ * Collapses armor combinations into aggregate signatures (capped required-skill levels, slot
+ * multiset, set-bonus piece counts, worn-slot subset) keeping only the highest-defense
  * representative of each.
  */
 final class ArmorAggregates {
@@ -19,7 +21,8 @@ final class ArmorAggregates {
   private static final int MAX_SLOTS_OF_SIZE = 15;
   private static final int MAX_SET_PIECES = 7;
   private static final int WORN_SHIFT = 12;
-  private static final int SET_SHIFT = WORN_SHIFT + 3;
+  private static final int WORN_BITS = 3;
+  private static final int SET_SHIFT = WORN_SHIFT + WORN_BITS;
 
   record Signature(long requiredLevels, long extras) {}
 
@@ -34,8 +37,8 @@ final class ArmorAggregates {
 
   private static final class Builder {
 
-    long keyA;
-    final int[] slotCounts = new int[3];
+    long requiredLevels;
+    final int[] slotCounts = new int[SlotScore.MAX_SLOT_SIZE];
     final int[] setCount;
     int worn;
     int defense;
@@ -98,7 +101,7 @@ final class ArmorAggregates {
             continue;
           }
 
-          Signature key = keyOf(nv);
+          Signature key = signatureOf(nv);
           Builder old = next.get(key);
 
           if (old == null || nv.defense > old.defense) {
@@ -121,7 +124,7 @@ final class ArmorAggregates {
       boolean ok = true;
 
       for (int j = 0; j < nSet; j++) {
-        if (activationLevel(setRanks.get(j), v.setCount[j]) < requiredSet[j]) {
+        if (SetBonusActivation.levelFor(v.setCount[j], setRanks.get(j)) < requiredSet[j]) {
           ok = false;
           break;
         }
@@ -146,26 +149,13 @@ final class ArmorAggregates {
     return aggregates;
   }
 
-  /** Highest skill level achieved by {@code pieceCount} pieces under the bonus thresholds. */
-  static int activationLevel(Map<Integer, Integer> thresholds, int pieceCount) {
-    int best = 0;
-
-    for (Map.Entry<Integer, Integer> rank : thresholds.entrySet()) {
-      if (pieceCount >= rank.getKey() && rank.getValue() > best) {
-        best = rank.getValue();
-      }
-    }
-
-    return best;
-  }
-
   private Builder extend(Builder v, int pos, ArmorPiece p) {
     Builder r = new Builder(nSet);
-    r.keyA = v.keyA;
+    r.requiredLevels = v.requiredLevels;
     r.worn = v.worn;
     r.defense = v.defense;
     r.slotValue = v.slotValue;
-    System.arraycopy(v.slotCounts, 0, r.slotCounts, 0, 3);
+    System.arraycopy(v.slotCounts, 0, r.slotCounts, 0, SlotScore.MAX_SLOT_SIZE);
     System.arraycopy(v.setCount, 0, r.setCount, 0, v.setCount.length);
     System.arraycopy(v.pieces, 0, r.pieces, 0, SLOT_COUNT);
 
@@ -183,17 +173,17 @@ final class ArmorAggregates {
           continue;
         }
 
-        int cur = SkillLevels.levelAt(r.keyA, skillPosIdx);
+        int cur = SkillLevels.levelAt(r.requiredLevels, skillPosIdx);
         int next = Math.min(cur + se.getValue(), maxRank[skillPosIdx]);
-        r.keyA = SkillLevels.setLevel(r.keyA, skillPosIdx, next);
+        r.requiredLevels = SkillLevels.setLevel(r.requiredLevels, skillPosIdx, next);
       }
 
       for (int s : p.slots()) {
-        if (s >= 1 && s <= 3) {
+        if (s >= 1 && s <= SlotScore.MAX_SLOT_SIZE) {
           r.slotCounts[s - 1] = Math.min(MAX_SLOTS_OF_SIZE, r.slotCounts[s - 1] + 1);
         }
 
-        r.slotValue += SlotScores.valueOf(s);
+        r.slotValue += SlotScore.valueOf(s);
       }
 
       for (int j = 0; j < nSet; j++) {
@@ -215,7 +205,7 @@ final class ArmorAggregates {
   private boolean feasiblePartial(Builder r, int chosen) {
     if (chosen >= SLOT_COUNT) {
       for (int i = 0; i < n; i++) {
-        int innate = SkillLevels.levelAt(r.keyA, i);
+        int innate = SkillLevels.levelAt(r.requiredLevels, i);
 
         if (!bounds.canStillMeet(i, innate, totalSlots(r.slotCounts))) {
           return false;
@@ -223,7 +213,7 @@ final class ArmorAggregates {
       }
 
       for (int j = 0; j < nSet; j++) {
-        if (activationLevel(setRanks.get(j), r.setCount[j]) < requiredSet[j]) {
+        if (SetBonusActivation.levelFor(r.setCount[j], setRanks.get(j)) < requiredSet[j]) {
           return false;
         }
       }
@@ -234,7 +224,7 @@ final class ArmorAggregates {
     int piecesLeft = SLOT_COUNT - chosen;
 
     for (int i = 0; i < n; i++) {
-      int innate = SkillLevels.levelAt(r.keyA, i);
+      int innate = SkillLevels.levelAt(r.requiredLevels, i);
 
       if (!bounds.canStillMeet(chosen, i, innate, totalSlots(r.slotCounts))) {
         return false;
@@ -242,7 +232,9 @@ final class ArmorAggregates {
     }
 
     for (int j = 0; j < nSet; j++) {
-      if (activationLevel(setRanks.get(j), r.setCount[j] + piecesLeft) < requiredSet[j]) {
+      if (
+        SetBonusActivation.levelFor(r.setCount[j] + piecesLeft, setRanks.get(j)) < requiredSet[j]
+      ) {
         return false;
       }
     }
@@ -254,19 +246,19 @@ final class ArmorAggregates {
     return slotCounts[0] + slotCounts[1] + slotCounts[2];
   }
 
-  private Signature keyOf(Builder v) {
+  private Signature signatureOf(Builder v) {
     long extras = 0;
 
-    for (int sz = 1; sz <= 3; sz++) {
-      extras |= (long) v.slotCounts[sz - 1] << (4 * (sz - 1));
+    for (int size = 1; size <= SlotScore.MAX_SLOT_SIZE; size++) {
+      extras |= (long) v.slotCounts[size - 1] << (SkillLevels.NIBBLE_BITS * (size - 1));
     }
 
     extras |= (long) v.worn << WORN_SHIFT;
 
     for (int j = 0; j < v.setCount.length; j++) {
-      extras |= (long) v.setCount[j] << (SET_SHIFT + 3 * j);
+      extras |= (long) v.setCount[j] << (SET_SHIFT + WORN_BITS * j);
     }
 
-    return new Signature(v.keyA, extras);
+    return new Signature(v.requiredLevels, extras);
   }
 }

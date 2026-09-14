@@ -14,7 +14,6 @@ import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.Build;
 import org.junit.jupiter.api.Test;
 
-/** Prototype check: feeding the solver's pool through ParetoFilter must not regress results. */
 class ParetoFilterTest {
 
   @Test

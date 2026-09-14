@@ -1,6 +1,8 @@
 package mhwilds.optimizer.loader;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import mhwilds.optimizer.model.AmuletRank;
 import mhwilds.optimizer.model.ArmorPiece;
@@ -39,6 +41,28 @@ public record GameData(
 
     if (setSkillRanks == null) {
       setSkillRanks = Map.of();
+    }
+  }
+
+  public Map<String, Integer> skillNamesById() {
+    Map<String, Integer> names = new HashMap<>();
+
+    for (Skill skill : skills.values()) {
+      names.put(skill.name().toLowerCase(Locale.ROOT), skill.gameId());
+    }
+
+    return names;
+  }
+
+  public Integer resolveSkillRef(String raw) {
+    String key = raw.trim();
+
+    try {
+      int id = Integer.parseInt(key);
+
+      return skills.containsKey(id) ? id : null;
+    } catch (NumberFormatException e) {
+      return skillNamesById().get(key.toLowerCase(Locale.ROOT));
     }
   }
 }

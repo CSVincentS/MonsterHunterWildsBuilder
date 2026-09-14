@@ -9,33 +9,10 @@ import java.util.Map;
 import java.util.Set;
 import mhwilds.optimizer.model.ArmorPiece;
 
-/**
- * Sound exact reduction of the armor candidate space: within each armor slot, keeps only
- * non-dominated pieces.
- *
- * <p>A piece V dominates a piece U in the same slot when V is at least as good on every dimension
- * that a build can depend on, so U can never appear in an optimal build:
- *
- * <ul>
- *   <li>same deco-slot size pattern (identical multiset of slot sizes),
- *   <li>same match on the required set/group bonuses,
- *   <li>at least U's levels on every required skill,
- *   <li>at least U's max defense,
- * </ul>
- *
- * with at least one strict beat somewhere.
- *
- * <p>Equality of the slot-size pattern is essential, not a convenience: under the free-slot-score
- * objective a consumed slot forfeits its {@code 10^size} value, so a piece with larger slots is not
- * strictly better — e.g. a {@code [3,1]} piece is cheaper to fill one slot with than a {@code [2,1]}
- * piece is to fill both. Only pieces with identical slot patterns are mutually comparable, and then
- * only their skills and defense can differ.
- */
 public final class ParetoFilter {
 
   private ParetoFilter() {}
 
-  /** Returns a filtered copy of {@code pieces} containing only per-slot non-dominated pieces. */
   public static List<ArmorPiece> filter(List<ArmorPiece> pieces, SkillThresholds thresholds) {
     Set<Integer> required = thresholds.requiredSkills().keySet();
     Map<String, List<ArmorPiece>> groups = new HashMap<>();
@@ -103,7 +80,6 @@ public final class ParetoFilter {
         }
 
         if (dominates(v, u, reqList)) {
-          // u is beaten by a peer in the same equivalence class; never needed.
           continue outer;
         }
       }

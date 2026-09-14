@@ -3,11 +3,6 @@ package mhwilds.optimizer.gui;
 import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.ranking.RankingFactory;
 
-/**
- * The score the GUI should display for a build: the same metric the ranking sorts by, so the
- * visible Score column stays consistent with the row order. {@link #headline()} renders the
- * number with its breakdown, mirroring the CLI output.
- */
 public record BuildScore(
   long total,
   long freeSlots,

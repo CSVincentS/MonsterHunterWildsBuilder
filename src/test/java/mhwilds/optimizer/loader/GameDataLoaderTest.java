@@ -19,11 +19,9 @@ class GameDataLoaderTest {
     assertThat(data.amuletRanks()).isNotEmpty();
     assertThat(data.weapons()).isNotEmpty();
 
-    // Spot-check Constitution
     assertThat(data.skills()).containsKey(-1689391744);
     assertThat(data.skills().get(-1689391744).maxRank()).isEqualTo(5);
 
-    // Spot-check Stamina Surge
     assertThat(data.skills()).containsKey(-315492576);
     assertThat(data.skills().get(-315492576).maxRank()).isEqualTo(3);
   }

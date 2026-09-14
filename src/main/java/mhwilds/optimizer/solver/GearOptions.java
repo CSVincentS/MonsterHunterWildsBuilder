@@ -4,9 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import mhwilds.optimizer.model.AmuletRank;
+import mhwilds.optimizer.model.SlotScore;
 import mhwilds.optimizer.model.Weapon;
 
-/** Builds and Pareto-prunes the amulet and weapon choices offered to each evaluation. */
 final class GearOptions {
 
   record AmuletOpt(AmuletRank rank, long pack) {}
@@ -86,7 +86,7 @@ final class GearOptions {
         new WeaponOpt(
           w,
           SkillLevels.packOf(w.skills(), skillPos),
-          SlotScores.score(w.slots()),
+          SlotScore.score(w.slots()),
           counts
         )
       );

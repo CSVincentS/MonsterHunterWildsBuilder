@@ -1,14 +1,15 @@
 package mhwilds.optimizer.solver;
 
 import java.util.List;
+import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.solver.ArmorAggregates.Aggregate;
 import mhwilds.optimizer.solver.DecoFill.FillResult;
 import mhwilds.optimizer.solver.GearOptions.AmuletOpt;
 import mhwilds.optimizer.solver.GearOptions.WeaponOpt;
 
 /**
- * Evaluates one armor aggregate: a joint exact armor+weapon decoration fill (see {@link DecoFill})
- * over every relevant amulet and weapon, keeping the best builds in a {@link TopK} heap.
+ * Evaluates one armor aggregate: a joint exact armor+weapon decoration fill
+ * over every relevant amulet and weapon, keeping the best builds in a heap.
  */
 final class AggregateEvaluator {
 
@@ -29,7 +30,7 @@ final class AggregateEvaluator {
   }
 
   void evaluate(Aggregate aggregate, List<AmuletOpt> amulets, List<WeaponOpt> weapons, TopK topK) {
-    long need0 = 0;
+    long residual = 0;
 
     for (int i = 0; i < n; i++) {
       int innate = SkillLevels.levelAt(aggregate.signature().requiredLevels(), i);
@@ -40,35 +41,36 @@ final class AggregateEvaluator {
           return;
         }
 
-        need0 |= (long) res << (4 * i);
+        residual |= (long) res << (SkillLevels.BITS_PER_SKILL * i);
       }
     }
 
-    long fixed = aggregate.slotValue();
+    long baseScore = aggregate.slotValue();
 
     if (bonus > 0) {
-      fixed += bonus * (5L - aggregate.worn());
+      baseScore += bonus * (ArmorSlot.values().length - aggregate.worn());
     }
 
     for (AmuletOpt amulet : amulets) {
-      long needA = amulet == null ? need0 : SkillLevels.sub(need0, amulet.pack());
+      long afterAmulet = amulet == null ? residual : SkillLevels.sub(residual, amulet.pack());
 
       for (WeaponOpt weapon : weapons) {
-        long needW = weapon == null ? needA : SkillLevels.sub(needA, weapon.innatePack());
+        long afterWeapon =
+          weapon == null ? afterAmulet : SkillLevels.sub(afterAmulet, weapon.innatePack());
         int[] weaponCounts = weapon == null ? ZERO_COUNTS : weapon.counts();
 
-        if (!bounds.fillFeasible(needW, aggregate.slotCounts(), weaponCounts)) {
+        if (!bounds.fillFeasible(afterWeapon, aggregate.slotCounts(), weaponCounts)) {
           continue;
         }
 
-        long cost = fill.fillCost(needW, aggregate.slotCounts(), weaponCounts);
+        long cost = fill.fillCost(afterWeapon, aggregate.slotCounts(), weaponCounts);
 
         if (cost == DecoFill.INF) {
           continue;
         }
 
         long score =
-          fixed -
+          baseScore -
           cost +
           (weapon == null ? 0 : weapon.slotValue()) +
           (amulet == null ? bonus : 0) +
@@ -78,7 +80,7 @@ final class AggregateEvaluator {
           continue;
         }
 
-        FillResult result = fill.fillWithSteps(needW, aggregate.slotCounts(), weaponCounts);
+        FillResult result = fill.fillWithSteps(afterWeapon, aggregate.slotCounts(), weaponCounts);
 
         if (result.cost() == DecoFill.INF) {
           continue;

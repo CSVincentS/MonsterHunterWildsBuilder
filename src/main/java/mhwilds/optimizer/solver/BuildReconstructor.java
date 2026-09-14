@@ -10,7 +10,6 @@ import mhwilds.optimizer.solver.DecoFill.Step;
 import mhwilds.optimizer.solver.GearOptions.AmuletOpt;
 import mhwilds.optimizer.solver.GearOptions.WeaponOpt;
 
-/** Turns a chosen aggregate and decoration-fill steps into a concrete {@link Build}. */
 final class BuildReconstructor {
 
   private BuildReconstructor() {}

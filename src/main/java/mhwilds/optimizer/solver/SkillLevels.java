@@ -2,33 +2,37 @@ package mhwilds.optimizer.solver;
 
 import java.util.Map;
 
-/** Four-bit-per-skill bit packing over the required non-set skills. */
 final class SkillLevels {
 
-  static final int BITS_PER_SKILL = 4;
+  static final int NIBBLE_BITS = 4;
+
+  static final int BITS_PER_SKILL = NIBBLE_BITS;
   private static final long SKILL_MASK = 0xF;
+
+  /** 15 nibbles (60 bits): never touches the sign bit. */
+  private static final int PACK_BUDGET_BITS = 60;
+
+  /** Probed positions; 16 keeps shift logic unambiguous. */
+  static final int MAX_PACKED_SKILLS = 16;
 
   private SkillLevels() {}
 
-  /** Highest number of non-set skills that fit alongside {@code extraGroups} packed groups. */
   static int maxSkills(int extraGroups) {
-    return (60 - BITS_PER_SKILL * extraGroups) / BITS_PER_SKILL;
+    return (PACK_BUDGET_BITS - BITS_PER_SKILL * extraGroups) / BITS_PER_SKILL;
   }
 
   static void requireCapacity(int n, int extraGroups, String what) {
-    if (BITS_PER_SKILL * n + BITS_PER_SKILL * extraGroups > 60) {
+    if (BITS_PER_SKILL * n + BITS_PER_SKILL * extraGroups > PACK_BUDGET_BITS) {
       throw new IllegalArgumentException(
         what + " supports at most " + maxSkills(extraGroups) + " required non-set skills, got " + n
       );
     }
   }
 
-  /** Bitmask covering the {@code n} packed skills. */
   static long mask(int n) {
     return (1L << (BITS_PER_SKILL * n)) - 1;
   }
 
-  /** Packs {@code skills} into their {@code positions}; skills without a position are skipped. */
   static long packOf(Map<Integer, Integer> skills, Map<Integer, Integer> positions) {
     long pack = 0;
 
@@ -43,7 +47,6 @@ final class SkillLevels {
     return pack;
   }
 
-  /** Packs {@code levels[i]} (each {@code 0..15}) into four bits per skill. */
   static long packLevels(int[] levels, int n) {
     long pack = 0;
 
@@ -65,11 +68,11 @@ final class SkillLevels {
     );
   }
 
-  /** Subtracts {@code by} from {@code need} pointwise, clamping at zero. */
+  /** Pointwise clamped subtraction. */
   static long sub(long need, long by) {
     long out = 0;
 
-    for (int pos = 0; pos < 16; pos++) {
+    for (int pos = 0; pos < MAX_PACKED_SKILLS; pos++) {
       int value =
         (int) ((need >>> (BITS_PER_SKILL * pos)) & SKILL_MASK) -
         (int) ((by >>> (BITS_PER_SKILL * pos)) & SKILL_MASK);

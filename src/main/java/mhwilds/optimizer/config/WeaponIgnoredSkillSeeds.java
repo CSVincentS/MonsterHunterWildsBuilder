@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Per-weapon-kind ignored-skill seeds loaded from {@code weapon-ignored-skills.json}. */
 public final class WeaponIgnoredSkillSeeds {
 
   private static final String RESOURCE = "/weapon-ignored-skills.json";
@@ -41,7 +40,6 @@ public final class WeaponIgnoredSkillSeeds {
     }
   }
 
-  /** Ignored-skill ids for a weapon kind; empty set for unknown kinds. */
   public Set<Integer> seedFor(String kind) {
     return seeds.getOrDefault(kind, Set.of());
   }

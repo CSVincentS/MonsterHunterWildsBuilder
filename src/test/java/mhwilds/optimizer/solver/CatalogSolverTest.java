@@ -23,11 +23,6 @@ import mhwilds.optimizer.model.SlotTarget;
 import mhwilds.optimizer.model.Weapon;
 import org.junit.jupiter.api.Test;
 
-/**
- * {CatalogSolver} is verified two ways: against an independent brute-force oracle on crafted
- * pools (exact fill, joint amulet/weapon spill, omission bonuses, set skills) and on the real
- * configs, asserting every returned build satisfies the requested thresholds.
- */
 class CatalogSolverTest {
 
   private static final long INF = Long.MAX_VALUE >> 2;
@@ -217,7 +212,6 @@ class CatalogSolverTest {
       .containsExactlyElementsOf(expected);
   }
 
-  /** Independent ground truth: no solver code is reused here. */
   private List<Long> bruteForceOracle(SolverPool pool, long bonus) {
     SkillThresholds thr = pool.thresholds();
     Map<Integer, Integer> req = thr.requiredSkills();
@@ -559,10 +553,6 @@ class CatalogSolverTest {
     }
   }
 
-  /**
-   * Faithful crop of a real pool for a bounded run: top {@code perSlot} pieces per armor slot by
-   * defense, capped relevant amulets/weapons.
-   */
   private static SolverPool restrictPool(SolverPool in, int perSlot, int capAmu, int capWep) {
     Map<Integer, Integer> req = in.thresholds().requiredSkills();
     List<ArmorSlot> slots = new ArrayList<>(
