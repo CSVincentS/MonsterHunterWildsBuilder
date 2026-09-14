@@ -1,0 +1,41 @@
+{
+  "required_skills" : {
+    "Seregios's Tenacity" : 1,
+    "Gore Magala's Tyranny" : 1,
+    "Flinch Free" : 1,
+    "Recovery Speed" : 1,
+    "Agitator" : 5,
+    "Burst" : 1,
+    "Antivirus" : 3,
+    "Stamina Surge" : 3,
+    "Evade Window" : 2,
+    "Scale Layering" : 1,
+    "Adrenaline Rush" : 4,
+    "Constitution" : 5
+  },
+  "weapon_type" : "bow",
+  "armor" : {
+    "exclude_sets" : [ ],
+    "exclude_skills" : [ ],
+    "min_rarity" : null,
+    "max_rarity" : null
+  },
+  "decorations" : {
+    "exclude_ids" : [ ],
+    "min_rarity" : null,
+    "max_rarity" : null
+  },
+  "amulets" : {
+    "exclude_families" : [ ],
+    "min_rarity" : null,
+    "max_rarity" : null
+  },
+  "weapons" : {
+    "include_ids" : [ ],
+    "min_rarity" : null,
+    "max_rarity" : null
+  },
+  "ignored_skills" : [ ],
+  "ranking" : "free_equipment_slots",
+  "equipment_slot_bonus" : 3000
+}
