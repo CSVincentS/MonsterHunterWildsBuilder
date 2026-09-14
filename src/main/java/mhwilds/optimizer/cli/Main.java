@@ -17,7 +17,9 @@ import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.SlotAssignment;
 import mhwilds.optimizer.ranking.RankingFactory;
 import mhwilds.optimizer.ranking.RankingStrategy;
+import mhwilds.optimizer.solver.CatalogSolver;
 import mhwilds.optimizer.solver.GreedySolver;
+import mhwilds.optimizer.solver.Solver;
 import mhwilds.optimizer.solver.SolverPool;
 
 public class Main {
@@ -98,10 +100,16 @@ public class Main {
         : config.equipmentSlotBonus() != null
           ? config.equipmentSlotBonus()
           : 0L;
-    GreedySolver solver = new GreedySolver(topN, options.threads(), equipmentBonus);
+    String solverName = options.solver();
+    String solverLabel = solverName.equals("greedy") ? "greedy" : "catalog";
+    Solver solver = solverName.equals("greedy")
+      ? new GreedySolver(topN, options.threads(), equipmentBonus)
+      : new CatalogSolver(topN, options.threads(), equipmentBonus);
     List<Build> results = solver.solve(pool);
     long elapsed = System.currentTimeMillis() - start;
-    System.err.println("Solver found " + results.size() + " builds in " + elapsed + "ms");
+    System.err.println(
+      "Solver (" + solverLabel + ")" + " found " + results.size() + " builds in " + elapsed + "ms"
+    );
 
     if (results.isEmpty()) {
       out.println("No valid builds found.");
@@ -141,7 +149,8 @@ public class Main {
     String ranking,
     String outputPath,
     int threads,
-    Long equipmentBonus
+    Long equipmentBonus,
+    String solver
   ) {}
 
   public static CliArguments parseArgs(String[] args) {
@@ -153,6 +162,7 @@ public class Main {
     String outputPath = null;
     int threads = DEFAULT_THREADS;
     Long equipmentBonus = null;
+    String solver = "catalog";
     boolean dataDirConsumed = false;
     boolean configPathConsumed = false;
 
@@ -180,6 +190,12 @@ public class Main {
         }
         case "--ranking" -> {
           rankingName = stringValue(args, ++i, "--ranking");
+        }
+        case "--solver" -> {
+          solver = stringValue(args, ++i, "--solver");
+          if (!solver.equals("catalog") && !solver.equals("greedy")) {
+            throw new IllegalArgumentException("--solver must be catalog or greedy, got " + solver);
+          }
         }
         case "--equipment-bonus" -> {
           long v = parseIntValue(args, ++i, "--equipment-bonus");
@@ -218,7 +234,8 @@ public class Main {
       rankingName,
       outputPath,
       threads,
-      equipmentBonus
+      equipmentBonus,
+      solver
     );
   }
 
@@ -330,6 +347,7 @@ public class Main {
     System.out.println(
       "  --ranking <name>   Ranking strategy: free_slots (default) or free_equipment_slots"
     );
+    System.out.println("  --solver <name>    Solver: catalog (default, exact) or greedy");
     System.out.println(
       "  --equipment-bonus <n>  Points awarded per omitted equipment slot, e.g. 1000 = one"
     );
