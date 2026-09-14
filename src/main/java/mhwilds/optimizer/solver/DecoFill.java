@@ -16,17 +16,16 @@ import mhwilds.optimizer.model.Decoration;
  * packed) states: spending one slot of a group costs {@code 10^size} and reduces the residual by a
  * non-dominated decoration's skills.
  *
- * <p>Skill levels are packed four bits per required non-set skill, and slot counts four bits per
- * (kind, size) group — up to 9 required non-set skills fit in the state long. Repeats are cached
- * so the identical fill is computed once per (slot multiset, residual) pair.
+ * <p>Skill levels are packed four bits per required non-set skill (see {@link SkillLevels}), and
+ * slot counts four bits per (kind, size) group — up to 9 required non-set skills fit in the state
+ * long. Repeats are cached so the identical fill is computed once per (slot multiset, residual)
+ * pair.
  */
 public final class DecoFill {
 
-  private static final long[] POW10 = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
   static final long INF = Long.MAX_VALUE >> 2;
-  private static final int BITS = 4;
   private static final int SIZES = 3;
-  private static final int GROUPS = 6;
+  static final int GROUPS = 6;
 
   /** Armor decorations and weapon decorations use {@code group = kind * SIZES + (size - 1)}. */
   public static final int ARMOR = 0;
@@ -49,36 +48,6 @@ public final class DecoFill {
     }
   }
 
-  /** Packs {@code levels[i]} (each {@code 0..15}) into four bits per skill. */
-  public static long packLevels(int[] levels, int n) {
-    long pack = 0;
-
-    for (int i = 0; i < n; i++) {
-      pack |= (long) (levels[i] & 0xF) << (4 * i);
-    }
-
-    return pack;
-  }
-
-  /** Subtracts {@code by} from {@code need} pointwise, clamping at zero. */
-  public static long sub(long need, long by) {
-    long out = 0;
-
-    for (int pos = 0; pos < 16; pos++) {
-      int value = (int) ((need >>> (4 * pos)) & 0xF) - (int) ((by >>> (4 * pos)) & 0xF);
-
-      if (value > 0) {
-        out |= (long) value << (4 * pos);
-      }
-    }
-
-    return out;
-  }
-
-  public static boolean isZero(long need, int n) {
-    return (need & ((1L << (4 * n)) - 1)) == 0;
-  }
-
   /**
    * @param armorDecos armor decoration pool
    * @param weaponDecos weapon decoration pool
@@ -91,14 +60,8 @@ public final class DecoFill {
     Map<Integer, Integer> skillPositions
   ) {
     this.n = skillPositions.size();
-
-    if (4 * n + 4 * GROUPS > 60) {
-      throw new IllegalArgumentException(
-        "DecoFill supports at most 9 required non-set skills, got " + n
-      );
-    }
-
-    this.needMask = (1L << (4 * n)) - 1;
+    SkillLevels.requireCapacity(n, GROUPS, "DecoFill");
+    this.needMask = SkillLevels.mask(n);
     this.groups = new List[GROUPS];
     this.groupCost = new int[GROUPS];
 
@@ -107,8 +70,8 @@ public final class DecoFill {
     }
 
     for (int size = 1; size <= SIZES; size++) {
-      groupCost[group(ARMOR, size)] = (int) POW10[size];
-      groupCost[group(WEAPON, size)] = (int) POW10[size];
+      groupCost[group(ARMOR, size)] = (int) SlotScores.valueOf(size);
+      groupCost[group(WEAPON, size)] = (int) SlotScores.valueOf(size);
     }
 
     add(armorDecos, ARMOR, skillPositions);
@@ -126,7 +89,7 @@ public final class DecoFill {
 
   /** Minimum consumed slot value covering {@code needPack}, or {@link #INF} when impossible. */
   public long fillCost(long needPack, int[] armorCount, int[] weaponCount) {
-    if (isZero(needPack, n)) {
+    if (SkillLevels.isZero(needPack, n)) {
       return 0;
     }
 
@@ -146,7 +109,7 @@ public final class DecoFill {
 
   /** Minimum fill plus the concrete decoration-per-slot assignment (uncached). */
   public FillResult fillWithSteps(long needPack, int[] armorCount, int[] weaponCount) {
-    if (isZero(needPack, n)) {
+    if (SkillLevels.isZero(needPack, n)) {
       return new FillResult(0, List.of());
     }
 
@@ -174,15 +137,7 @@ public final class DecoFill {
     }
 
     for (Decoration deco : decos) {
-      long pack = 0;
-
-      for (Map.Entry<Integer, Integer> e : deco.skills().entrySet()) {
-        Integer pos = skillPositions.get(e.getKey());
-
-        if (pos != null) {
-          pack |= (long) (e.getValue() & 0xF) << (4 * pos);
-        }
-      }
+      long pack = SkillLevels.packOf(deco.skills(), skillPositions);
 
       if (pack == 0) {
         continue;
@@ -281,7 +236,7 @@ public final class DecoFill {
         long newCounts = countsLeft - (1L << (4 * g));
 
         for (int d = 0; d < groups[g].size(); d++) {
-          long newNeed = sub(need, groups[g].get(d).pack);
+          long newNeed = SkillLevels.sub(need, groups[g].get(d).pack);
 
           if (newNeed == need) {
             continue;

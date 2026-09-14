@@ -42,8 +42,8 @@ class ParetoFilterTest {
       );
 
       long bonus = config.equipmentSlotBonus() != null ? config.equipmentSlotBonus() : 0L;
-      GreedySolver rawSolver = new GreedySolver(1000, 1, bonus);
-      GreedySolver paredSolver = new GreedySolver(1000, 1, bonus);
+      CatalogSolver rawSolver = new CatalogSolver(1000, bonus);
+      CatalogSolver paredSolver = new CatalogSolver(1000, bonus);
 
       long t0 = System.currentTimeMillis();
       List<Build> rawResults = rawSolver.solve(raw);

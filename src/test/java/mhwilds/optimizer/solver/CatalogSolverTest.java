@@ -25,10 +25,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * {CatalogSolver} is verified two ways: against an independent brute-force oracle on crafted
- * pools (exact fill, joint amulet/weapon spill, omission bonuses, set skills) and against {@link
- * GreedySolver} on the three real configs, asserting per-build dominance — for every greedy build
- * the exact solver must reach the same or a better score, so its feasible set is a superset of the
- * greedy solver's.
+ * pools (exact fill, joint amulet/weapon spill, omission bonuses, set skills) and on the real
+ * configs, asserting every returned build satisfies the requested thresholds.
  */
 class CatalogSolverTest {
 
@@ -196,7 +194,7 @@ class CatalogSolverTest {
       .toList();
 
     long t0 = System.currentTimeMillis();
-    List<Build> results = new CatalogSolver(100, 1, c.bonus()).solve(c.pool());
+    List<Build> results = new CatalogSolver(100, c.bonus()).solve(c.pool());
     long elapsed = System.currentTimeMillis() - t0;
 
     List<Long> actual = results
@@ -523,7 +521,7 @@ class CatalogSolverTest {
   }
 
   @Test
-  void realConfigsDoNotRegressGreedySolver() {
+  void realConfigsProduceValidTopBuilds() {
     GameData data = new GameDataLoader("data").load();
     boolean soak =
       Boolean.getBoolean("catalog.soak") || "true".equalsIgnoreCase(System.getenv("CATALOG_SOAK"));
@@ -539,79 +537,21 @@ class CatalogSolverTest {
       GearPoolConfig config = GearPoolConfig.load(path);
       long bonus = config.equipmentSlotBonus() != null ? config.equipmentSlotBonus() : 0L;
 
-      // Default run uses the restricted crop for a fast regression cap; the soak run exercises
-      // the full pools at the production k.
+      // Default run uses the restricted crop for a fast cap; the soak run exercises the full
+      // pools at the production k.
       SolverPool pool = new GearPoolResolver(data).resolve(config);
       SolverPool used = soak ? pool : restrictPool(pool, 10, 6, 9);
       int k = soak ? 1000 : 100;
 
       long t0 = System.currentTimeMillis();
-      List<Build> baseline = new GreedySolver(k, 1, bonus).solve(used);
-      long tGreedy = System.currentTimeMillis() - t0;
+      List<Build> results = new CatalogSolver(k, bonus).solve(used);
+      long elapsed = System.currentTimeMillis() - t0;
 
-      long t1 = System.currentTimeMillis();
-      List<Build> results = new CatalogSolver(k, 1, bonus).solve(used);
-      long tCatalog = System.currentTimeMillis() - t1;
+      System.out.printf("[%s] catalog %d builds (%dms)%n", path, results.size(), elapsed);
 
-      List<Long> baseScores = distinctDesc(baseline, bonus);
-      List<Long> catalogScores = distinctDesc(results, bonus);
-
-      System.out.printf(
-        "[%s] greedy %s catalog %s | greedy %dms catalog %dms%n",
-        path,
-        baseScores,
-        catalogScores,
-        tGreedy,
-        tCatalog
-      );
-
-      // Greedy can emit EXTRA distinct low scores that are slack builds (its fill is not
-      // cost-minimal) and dominated equipment variants (e.g. a weapon that a strictly-better
-      // same-name sibling beats). The exact solver replaces those with strictly better builds,
-      // so its distinct list is not rank-comparable. The sound guarantee is per-build dominance:
-      // every greedy build must be shadowed by a catalog build of equal or higher score, i.e.
-      // for every score threshold t the catalog must offer at least as many builds >= t as
-      // greedy does. (Fails if the catalog missed any reachable build; passes despite greedy's
-      // dominated/slack tail.)
-      List<Long> greScores = baseline
-        .stream()
-        .map(b -> b.equipmentAwareScore(bonus))
-        .toList();
-      List<Long> catScoresDesc = results
-        .stream()
-        .map(b -> b.equipmentAwareScore(bonus))
-        .sorted(Comparator.reverseOrder())
-        .toList();
-
-      int catIdx = 0;
-
-      for (long gs : greScores) {
-        boolean shadowed = false;
-
-        while (catIdx < catScoresDesc.size()) {
-          if (catScoresDesc.get(catIdx) >= gs) {
-            shadowed = true;
-            break;
-          }
-
-          catIdx++;
-        }
-
-        if (!shadowed) {
-          org.junit.jupiter.api.Assertions.fail(
-            String.format(
-              "%s: no catalog build reaches greedy build score %d — the exact solver must reach " +
-                "or beat every score the greedy solver reaches",
-              path,
-              gs
-            )
-          );
-        }
-      }
-
-      assertThat(catalogScores.get(0))
-        .as("%s: top-1 distinct score must not regress", path)
-        .isGreaterThanOrEqualTo(baseScores.get(0));
+      assertThat(results)
+        .as("%s: the exact solver must find builds on the real config", path)
+        .isNotEmpty();
 
       for (Build b : results) {
         checkThresholds(b, used.thresholds());
@@ -619,19 +559,9 @@ class CatalogSolverTest {
     }
   }
 
-  private static List<Long> distinctDesc(List<Build> builds, long bonus) {
-    return builds
-      .stream()
-      .map(b -> b.equipmentAwareScore(bonus))
-      .sorted(Comparator.reverseOrder())
-      .distinct()
-      .toList();
-  }
-
   /**
-   * Faithful crop of a real pool for a bounded equivalence run: top {@code perSlot} pieces per
-   * armor slot by defense, capped relevant amulets/weapons. Both solvers run on the same pool, so
-   * it still tests score equivalence on real game data.
+   * Faithful crop of a real pool for a bounded run: top {@code perSlot} pieces per armor slot by
+   * defense, capped relevant amulets/weapons.
    */
   private static SolverPool restrictPool(SolverPool in, int perSlot, int capAmu, int capWep) {
     Map<Integer, Integer> req = in.thresholds().requiredSkills();

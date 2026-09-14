@@ -16,7 +16,6 @@ class MainCliArgumentsTest {
     assertThat(o.showTopN()).isNull();
     assertThat(o.ranking()).isNull();
     assertThat(o.outputPath()).isNull();
-    assertThat(o.threads()).isGreaterThanOrEqualTo(1);
   }
 
   @Test
@@ -48,8 +47,6 @@ class MainCliArgumentsTest {
       "free_slots",
       "--output",
       "out.txt",
-      "--threads",
-      "4",
     });
 
     assertThat(o.dataDir()).isEqualTo("data");
@@ -58,7 +55,6 @@ class MainCliArgumentsTest {
     assertThat(o.showTopN()).isEqualTo(1);
     assertThat(o.ranking()).isEqualTo("free_slots");
     assertThat(o.outputPath()).isEqualTo("out.txt");
-    assertThat(o.threads()).isEqualTo(4);
   }
 
   @Test
@@ -80,20 +76,6 @@ class MainCliArgumentsTest {
     assertThatThrownBy(() -> Main.parseArgs(new String[] { "--show", "many" }))
       .isInstanceOf(IllegalArgumentException.class)
       .hasMessage("--show requires an integer, got many");
-  }
-
-  @Test
-  void zeroThreadsRejected() {
-    assertThatThrownBy(() -> Main.parseArgs(new String[] { "--threads", "0" }))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("--threads must be >= 1, got 0");
-  }
-
-  @Test
-  void nonIntegerThreadsRejected() {
-    assertThatThrownBy(() -> Main.parseArgs(new String[] { "--threads", "many" }))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessage("--threads requires an integer, got many");
   }
 
   @Test

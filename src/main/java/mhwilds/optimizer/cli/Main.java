@@ -18,8 +18,6 @@ import mhwilds.optimizer.model.SlotAssignment;
 import mhwilds.optimizer.ranking.RankingFactory;
 import mhwilds.optimizer.ranking.RankingStrategy;
 import mhwilds.optimizer.solver.CatalogSolver;
-import mhwilds.optimizer.solver.GreedySolver;
-import mhwilds.optimizer.solver.Solver;
 import mhwilds.optimizer.solver.SolverPool;
 
 public class Main {
@@ -27,7 +25,6 @@ public class Main {
   private static final String DEFAULT_DATA_DIR = "data";
   private static final String DEFAULT_CONFIG = "src/main/resources/default-config.json";
   private static final int DEFAULT_TOP = 1000;
-  private static final int DEFAULT_THREADS = Runtime.getRuntime().availableProcessors();
 
   public static void main(String[] args) {
     for (String arg : args) {
@@ -100,16 +97,9 @@ public class Main {
         : config.equipmentSlotBonus() != null
           ? config.equipmentSlotBonus()
           : 0L;
-    String solverName = options.solver();
-    String solverLabel = solverName.equals("greedy") ? "greedy" : "catalog";
-    Solver solver = solverName.equals("greedy")
-      ? new GreedySolver(topN, options.threads(), equipmentBonus)
-      : new CatalogSolver(topN, options.threads(), equipmentBonus);
-    List<Build> results = solver.solve(pool);
+    List<Build> results = new CatalogSolver(topN, equipmentBonus).solve(pool);
     long elapsed = System.currentTimeMillis() - start;
-    System.err.println(
-      "Solver (" + solverLabel + ")" + " found " + results.size() + " builds in " + elapsed + "ms"
-    );
+    System.err.println("Solver found " + results.size() + " builds in " + elapsed + "ms");
 
     if (results.isEmpty()) {
       out.println("No valid builds found.");
@@ -148,9 +138,7 @@ public class Main {
     Integer showTopN,
     String ranking,
     String outputPath,
-    int threads,
-    Long equipmentBonus,
-    String solver
+    Long equipmentBonus
   ) {}
 
   public static CliArguments parseArgs(String[] args) {
@@ -160,9 +148,7 @@ public class Main {
     Integer showTopN = null;
     String rankingName = null;
     String outputPath = null;
-    int threads = DEFAULT_THREADS;
     Long equipmentBonus = null;
-    String solver = "catalog";
     boolean dataDirConsumed = false;
     boolean configPathConsumed = false;
 
@@ -181,21 +167,8 @@ public class Main {
           }
           showTopN = s;
         }
-        case "--threads" -> {
-          int t = parseIntValue(args, ++i, "--threads");
-          if (t < 1) {
-            throw new IllegalArgumentException("--threads must be >= 1, got " + t);
-          }
-          threads = t;
-        }
         case "--ranking" -> {
           rankingName = stringValue(args, ++i, "--ranking");
-        }
-        case "--solver" -> {
-          solver = stringValue(args, ++i, "--solver");
-          if (!solver.equals("catalog") && !solver.equals("greedy")) {
-            throw new IllegalArgumentException("--solver must be catalog or greedy, got " + solver);
-          }
         }
         case "--equipment-bonus" -> {
           long v = parseIntValue(args, ++i, "--equipment-bonus");
@@ -233,9 +206,7 @@ public class Main {
       showTopN,
       rankingName,
       outputPath,
-      threads,
-      equipmentBonus,
-      solver
+      equipmentBonus
     );
   }
 
@@ -342,12 +313,8 @@ public class Main {
       "  --show N           Number of computed builds to display (default: all computed)"
     );
     System.out.println(
-      "  --threads N        Number of solver threads (default: " + DEFAULT_THREADS + ")"
-    );
-    System.out.println(
       "  --ranking <name>   Ranking strategy: free_slots (default) or free_equipment_slots"
     );
-    System.out.println("  --solver <name>    Solver: catalog (default, exact) or greedy");
     System.out.println(
       "  --equipment-bonus <n>  Points awarded per omitted equipment slot, e.g. 1000 = one"
     );

@@ -12,7 +12,7 @@ import mhwilds.optimizer.loader.GameDataLoader;
 import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.ranking.RankingFactory;
 import mhwilds.optimizer.ranking.RankingStrategy;
-import mhwilds.optimizer.solver.GreedySolver;
+import mhwilds.optimizer.solver.CatalogSolver;
 import mhwilds.optimizer.solver.SolverPool;
 import mhwilds.optimizer.validity.BuildValidator;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ class IntegrationTest {
     SolverPool pool = new GearPoolResolver(data).resolve(config);
 
     // Solve
-    GreedySolver solver = new GreedySolver();
+    CatalogSolver solver = new CatalogSolver();
     List<Build> results = solver.solve(pool);
 
     long elapsed = System.currentTimeMillis() - start;
@@ -113,7 +113,7 @@ class IntegrationTest {
     GameData data = new GameDataLoader("data").load();
     GearPoolConfig config = GearPoolConfig.load(cfg.toString());
     SolverPool pool = new GearPoolResolver(data).resolve(config);
-    List<Build> builds = new GreedySolver(100).solve(pool);
+    List<Build> builds = new CatalogSolver(100).solve(pool);
 
     assertThat(builds).isNotEmpty();
     assertThat(builds.get(0).weapon().kind()).isEqualTo("great-sword");
@@ -123,39 +123,5 @@ class IntegrationTest {
     for (Build b : builds) {
       assertThat(validator.validate(b)).as("build %s must validate", b).isEmpty();
     }
-  }
-
-  @Test
-  void parallelSolverMatchesSequentialExactly() {
-    GameData data = new GameDataLoader("data").load();
-    GearPoolConfig config = GearPoolConfig.load("src/main/resources/default-config.json");
-    SolverPool pool = new GearPoolResolver(data).resolve(config);
-
-    GreedySolver serial = new GreedySolver(1000, 1);
-    List<Build> serialResults = serial.solve(pool);
-    List<Build> serialRanked = serialResults.stream().sorted(ranking("free_slots")).toList();
-
-    GreedySolver parallel = new GreedySolver(
-      1000,
-      Math.max(2, Runtime.getRuntime().availableProcessors())
-    );
-    List<Build> parallelResults = parallel.solve(pool);
-    List<Build> parallelRanked = parallelResults.stream().sorted(ranking("free_slots")).toList();
-
-    assertThat(parallelRanked).hasSize(serialRanked.size());
-
-    for (int i = 0; i < serialRanked.size(); i++) {
-      assertThat(parallelRanked.get(i).freeSlotScore())
-        .as("score at rank %d must match serial", i)
-        .isEqualTo(serialRanked.get(i).freeSlotScore());
-    }
-
-    assertThat(parallelRanked.get(0).freeSlotScore())
-      .as("parallel top-1 must match serial top-1")
-      .isEqualTo(serialRanked.get(0).freeSlotScore());
-  }
-
-  private static RankingStrategy ranking(String name) {
-    return RankingFactory.create(name);
   }
 }

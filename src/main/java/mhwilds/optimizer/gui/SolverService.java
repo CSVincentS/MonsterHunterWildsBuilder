@@ -92,8 +92,7 @@ public class SolverService {
 
     long bonus =
       config.equipmentSlotBonus() != null ? Math.max(0, config.equipmentSlotBonus()) : 0L;
-    int threads = Runtime.getRuntime().availableProcessors();
-    List<Build> all = new CatalogSolver(computeTopN, threads, bonus).solve(pool);
+    List<Build> all = new CatalogSolver(computeTopN, bonus).solve(pool);
 
     RankingStrategy ranking = RankingFactory.create(config.ranking(), bonus);
     List<Build> ranked = all.stream().sorted(ranking).limit(Math.max(0, showTopN)).toList();
