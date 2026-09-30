@@ -2,6 +2,7 @@ package mhwilds.optimizer.gui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Desktop;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
@@ -9,8 +10,11 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.io.File;
+import java.net.URI;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -33,6 +37,8 @@ import javax.swing.SwingWorker;
 import javax.swing.text.DefaultCaret;
 import mhwilds.optimizer.config.GearPoolConfig;
 import mhwilds.optimizer.loader.GameData;
+import mhwilds.optimizer.mhshub.MhWildsHubLink;
+import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.Weapon;
 import mhwilds.optimizer.ranking.RankingFactory;
@@ -326,6 +332,28 @@ public class OptimizerWindow extends JFrame {
     JScrollPane detailScroll = new JScrollPane(detailArea);
     detailScroll.setBorder(BorderFactory.createTitledBorder("Detail"));
 
+    JButton hubButton = new JButton("Open in MH Wilds Hub");
+    hubButton.setToolTipText("Open the selected build in the mhwildshub builder");
+    hubButton.setEnabled(false);
+    hubButton.addActionListener(e -> {
+      int row = resultsTable.getSelectedRow();
+
+      if (row < 0) {
+        return;
+      }
+
+      openInHub(resultsModel.buildAt(row));
+    });
+    resultsTable.getSelectionModel().addListSelectionListener(e -> {
+      if (!e.getValueIsAdjusting()) {
+        hubButton.setEnabled(resultsTable.getSelectedRow() >= 0);
+      }
+    });
+    JPanel hubPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
+    hubPanel.add(hubButton);
+
+    rightPanel.add(hubPanel, BorderLayout.NORTH);
+
     JSplitPane verticalSplit = new JSplitPane(
       JSplitPane.VERTICAL_SPLIT,
       new JScrollPane(resultsTable),
@@ -456,6 +484,64 @@ public class OptimizerWindow extends JFrame {
   private void status(String text, boolean error) {
     statusLabel.setText(text);
     statusLabel.setForeground(error ? Color.RED : new Color(0, 120, 0));
+  }
+
+  private void openInHub(Build build) {
+    String url = MhWildsHubLink.shareUrl(build);
+
+    try {
+      if (openWithDesktop(url) || openWithProcess(url)) {
+        status("Opened build in MH Wilds Hub", false);
+        return;
+      }
+    } catch (Exception ignored) {}
+
+    status("Could not open a browser automatically; link: " + url, true);
+  }
+
+  private static boolean openWithDesktop(String url) throws Exception {
+    if (!Desktop.isDesktopSupported()) {
+      return false;
+    }
+
+    Desktop desktop = Desktop.getDesktop();
+
+    if (!desktop.isSupported(Desktop.Action.BROWSE)) {
+      return false;
+    }
+
+    desktop.browse(new URI(url));
+
+    return true;
+  }
+
+  private static boolean openWithProcess(String url) {
+    String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+
+    if (os.contains("win")) {
+      return launch(List.of("rundll32", "url.dll,FileProtocolHandler", url));
+    }
+
+    if (os.contains("mac")) {
+      return launch(List.of("open", url));
+    }
+
+    for (String tool : List.of("xdg-open", "gnome-open", "kde-open")) {
+      if (launch(List.of(tool, url))) {
+        return true;
+      }
+    }
+
+    return launch(List.of("gio", "open", url));
+  }
+
+  private static boolean launch(List<String> command) {
+    try {
+      Process process = new ProcessBuilder(command).start();
+      return process.waitFor(3, TimeUnit.SECONDS) ? process.exitValue() == 0 : true;
+    } catch (Exception e) {
+      return false;
+    }
   }
 
   private final class SolveWorker extends SwingWorker<SolverService.SolveResult, Void> {
