@@ -9,6 +9,7 @@ import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.Decoration;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.Weapon;
+import mhwilds.optimizer.transcendence.ArmorTranscendenceTable;
 
 public record GameData(
   Map<Integer, Skill> skills,
@@ -16,7 +17,8 @@ public record GameData(
   List<Decoration> decorations,
   List<AmuletRank> amuletRanks,
   List<Weapon> weapons,
-  Map<Integer, Map<Integer, Integer>> setSkillRanks
+  Map<Integer, Map<Integer, Integer>> setSkillRanks,
+  ArmorTranscendenceTable armorTranscendence
 ) {
   public GameData {
     if (skills == null) {
@@ -41,6 +43,10 @@ public record GameData(
 
     if (setSkillRanks == null) {
       setSkillRanks = Map.of();
+    }
+
+    if (armorTranscendence == null) {
+      armorTranscendence = ArmorTranscendenceTable.empty();
     }
   }
 

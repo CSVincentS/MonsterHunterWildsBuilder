@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,8 @@ import mhwilds.optimizer.model.Decoration;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.SlotTarget;
 import mhwilds.optimizer.model.Weapon;
+import mhwilds.optimizer.transcendence.ArmorTranscendence;
+import mhwilds.optimizer.transcendence.ArmorTranscendenceTable;
 
 public class GameDataLoader {
 
@@ -74,13 +77,16 @@ public class GameDataLoader {
 
     Map<Integer, Map<Integer, Integer>> setSkillRanks = collectSetSkillRanks(armorPieces);
 
+    ArmorTranscendenceTable armorTranscendence = loadArmorTranscendence();
+
     GameData data = new GameData(
       skills,
       armorPieces,
       decorations,
       amuletRanks,
       weapons,
-      setSkillRanks
+      setSkillRanks,
+      armorTranscendence
     );
 
     validateSkillReferences(data);
@@ -172,6 +178,52 @@ public class GameDataLoader {
     }
 
     return pieces;
+  }
+
+  private ArmorTranscendenceTable loadArmorTranscendence() {
+    JsonNode root = readOptional("ArmorUpgrade.json");
+
+    if (root == null) {
+      System.err.println("Warning: ArmorUpgrade.json not found, transcended armor is unavailable");
+
+      return ArmorTranscendenceTable.empty();
+    }
+
+    Map<Integer, ArmorTranscendence> rules = new LinkedHashMap<>();
+
+    for (JsonNode entry : root) {
+      int rarity = entry.get("rarity").asInt();
+      Set<Integer> levels = new HashSet<>();
+
+      for (JsonNode step : entry.get("steps")) {
+        levels.add(step.get("level").asInt());
+      }
+
+      rules.put(rarity, toTranscendence(rarity, levels));
+    }
+
+    return new ArmorTranscendenceTable(rules);
+  }
+
+  private static ArmorTranscendence toTranscendence(int rarity, Set<Integer> levels) {
+    int baseMaxLevel = 1;
+
+    while (levels.contains(baseMaxLevel + 1)) {
+      baseMaxLevel++;
+    }
+
+    int transcendedMaxLevel = levels
+      .stream()
+      .mapToInt(Integer::intValue)
+      .max()
+      .orElse(baseMaxLevel);
+
+    return new ArmorTranscendence(
+      rarity,
+      baseMaxLevel,
+      Math.max(transcendedMaxLevel, baseMaxLevel),
+      ArmorTranscendenceTable.upgradedSlotsForRarity(rarity)
+    );
   }
 
   private static int bonusId(JsonNode set, String objField, String idField) {
@@ -428,5 +480,15 @@ public class GameDataLoader {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to read game data file: " + file, e);
     }
+  }
+
+  private JsonNode readOptional(String relativePath) {
+    Path file = dataDir.resolve(relativePath);
+
+    if (!Files.isRegularFile(file)) {
+      return null;
+    }
+
+    return read(relativePath);
   }
 }

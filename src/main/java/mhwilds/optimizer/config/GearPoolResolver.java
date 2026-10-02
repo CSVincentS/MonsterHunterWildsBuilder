@@ -40,6 +40,10 @@ public class GearPoolResolver {
       ArmorPiece::skills
     );
 
+    if (config.armor().transcended()) {
+      armorPieces = data.armorTranscendence().transcend(armorPieces);
+    }
+
     List<Decoration> allDecorations = dropIgnoredSkillOnly(
       filterDecorations(config),
       ignoredSkillIds,

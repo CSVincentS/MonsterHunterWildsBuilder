@@ -31,7 +31,7 @@ public record GearPoolConfig(
     }
 
     if (armor == null) {
-      armor = new ArmorConfig(List.of(), List.of(), null, null);
+      armor = new ArmorConfig(List.of(), List.of(), null, null, false);
     }
 
     if (decorations == null) {
@@ -120,6 +120,20 @@ public record GearPoolConfig(
     );
   }
 
+  public GearPoolConfig withTranscendedArmor(boolean transcended) {
+    ArmorConfig current = armor;
+
+    return withArmor(
+      new ArmorConfig(
+        current.excludeSets(),
+        current.excludeSkills(),
+        current.minRarity(),
+        current.maxRarity(),
+        transcended
+      )
+    );
+  }
+
   public GearPoolConfig withDecorations(DecorationConfig decorations) {
     return new GearPoolConfig(
       requiredSkills,
@@ -195,7 +209,8 @@ public record GearPoolConfig(
     @JsonProperty("exclude_sets") List<String> excludeSets,
     @JsonProperty("exclude_skills") List<String> excludeSkills,
     @JsonProperty("min_rarity") Integer minRarity,
-    @JsonProperty("max_rarity") Integer maxRarity
+    @JsonProperty("max_rarity") Integer maxRarity,
+    @JsonProperty("transcended") boolean transcended
   ) {
     public ArmorConfig {
       if (excludeSets == null) {

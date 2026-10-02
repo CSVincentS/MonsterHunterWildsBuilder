@@ -45,7 +45,8 @@ public class SolverService {
     List<SkillRequirement> requirements,
     RarityBounds bounds,
     String ranking,
-    Long equipmentBonus
+    Long equipmentBonus,
+    Boolean transcended
   ) {
     Map<String, Integer> required = new HashMap<>();
 
@@ -61,7 +62,8 @@ public class SolverService {
           source.armor().excludeSets(),
           source.armor().excludeSkills(),
           bounds.armorMin(),
-          bounds.armorMax()
+          bounds.armorMax(),
+          transcended != null ? transcended : source.armor().transcended()
         )
       )
       .withDecorations(

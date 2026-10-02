@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -15,6 +16,7 @@ import mhwilds.optimizer.model.AmuletRank;
 import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.model.Decoration;
+import mhwilds.optimizer.model.SlotScore;
 import mhwilds.optimizer.model.SlotTarget;
 import mhwilds.optimizer.model.Weapon;
 import mhwilds.optimizer.solver.SolverPool;
@@ -337,7 +339,8 @@ class GearPoolResolverTest {
           8
         )
       ),
-      Map.of()
+      Map.of(),
+      data.armorTranscendence()
     );
   }
 
@@ -676,5 +679,60 @@ class GearPoolResolverTest {
   void unknownIgnoredSkillWarnsButDoesNotThrow() throws Exception {
     GearPoolConfig config = configWithIgnoredSkills(999_999_999);
     assertDoesNotThrow(() -> new GearPoolResolver(fabricatedData()).resolve(config));
+  }
+
+  @Test
+  void transcendedFlagRewritesArmorStatsInThePool() {
+    GearPoolConfig plain = GearPoolConfig.load("src/main/resources/default-config.json");
+
+    List<ArmorPiece> plainArmor = new GearPoolResolver(data).resolve(plain).armorPieces();
+    List<ArmorPiece> transcendedArmor = new GearPoolResolver(data)
+      .resolve(plain.withTranscendedArmor(true))
+      .armorPieces();
+
+    assertThat(transcendedArmor).hasSameSizeAs(plainArmor);
+
+    ArmorPiece rarity6 = transcendedArmor
+      .stream()
+      .filter(p -> p.rarity() == 6 && p.slots().length > 0)
+      .findFirst()
+      .orElseThrow();
+
+    assertThat(rarity6.slots().length).isGreaterThanOrEqualTo(2);
+    assertThat(Arrays.stream(rarity6.slots()).allMatch(s -> s >= 1 && s <= 3)).isTrue();
+    assertThat(rarity6.maxDefense()).isEqualTo(
+      data.armorTranscendence().forRarity(6).transcendedDefense(rarity6.baseDefense())
+    );
+  }
+
+  @Test
+  void untranscendedPoolIsLeftAloneByDefault() {
+    GearPoolConfig config = GearPoolConfig.load("src/main/resources/default-config.json");
+
+    assertThat(config.armor().transcended()).isFalse();
+    assertThat(new GearPoolResolver(data).resolve(config).armorPieces())
+      .extracting(ArmorPiece::maxDefense)
+      .containsExactlyElementsOf(data.armorPieces().stream().map(ArmorPiece::maxDefense).toList());
+  }
+
+  @Test
+  void transcendedRunOutscoresPlainRun() {
+    GearPoolConfig config = GearPoolConfig.load("src/main/resources/default-config.json");
+    GearPoolResolver resolver = new GearPoolResolver(data);
+
+    long plainSlots = resolver
+      .resolve(config)
+      .armorPieces()
+      .stream()
+      .mapToLong(p -> Arrays.stream(p.slots()).mapToLong(SlotScore::valueOf).sum())
+      .sum();
+    long transcendedSlots = resolver
+      .resolve(config.withTranscendedArmor(true))
+      .armorPieces()
+      .stream()
+      .mapToLong(p -> Arrays.stream(p.slots()).mapToLong(SlotScore::valueOf).sum())
+      .sum();
+
+    assertThat(transcendedSlots).isGreaterThan(plainSlots);
   }
 }

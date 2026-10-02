@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFileChooser;
@@ -83,6 +84,9 @@ public class OptimizerWindow extends JFrame {
     new SpinnerNumberModel(1000, 0, 1_000_000, 100)
   );
   private final JComboBox<String> weaponCombo;
+  private final JCheckBox transcendedBox = new JCheckBox(
+    "Transcended armor (max level, extra defense + deco slots)"
+  );
 
   private final JButton solveButton = new JButton("Solve");
   private final JTextArea detailArea = new JTextArea();
@@ -119,6 +123,7 @@ public class OptimizerWindow extends JFrame {
     Long bonus = config.equipmentSlotBonus();
     equipmentBonusSpinner.setValue(bonus != null ? Math.max(0, bonus) : 1000);
     equipmentBonusSpinner.setEnabled(RankingFactory.FREE_EQUIPMENT_SLOTS.equals(config.ranking()));
+    transcendedBox.setSelected(config.armor().transcended());
 
     seedSkillsFrom(config);
 
@@ -145,6 +150,16 @@ public class OptimizerWindow extends JFrame {
     gc.gridx = 0;
     panel.add(new JLabel(label), gc);
     gc.gridx = 1;
+    panel.add(component, gc);
+  }
+
+  private static void addFullWidthOptionRow(JPanel panel, int row, JComponent component) {
+    GridBagConstraints gc = new GridBagConstraints();
+    gc.gridy = row;
+    gc.gridx = 0;
+    gc.gridwidth = 2;
+    gc.anchor = GridBagConstraints.WEST;
+    gc.insets = new Insets(2, 0, 2, 8);
     panel.add(component, gc);
   }
 
@@ -276,6 +291,7 @@ public class OptimizerWindow extends JFrame {
     addOptionRow(optionsPanel, 2, "Show top M:", showSpinner);
     addOptionRow(optionsPanel, 3, "Ranking:", rankingCombo);
     addOptionRow(optionsPanel, 4, "Equipment slot bonus:", equipmentBonusSpinner);
+    addFullWidthOptionRow(optionsPanel, 5, transcendedBox);
 
     rankingCombo.addActionListener(e ->
       equipmentBonusSpinner.setEnabled(
@@ -383,7 +399,8 @@ public class OptimizerWindow extends JFrame {
       requirements,
       bounds,
       String.valueOf(rankingCombo.getSelectedItem()),
-      ((Number) equipmentBonusSpinner.getValue()).longValue()
+      ((Number) equipmentBonusSpinner.getValue()).longValue(),
+      transcendedBox.isSelected()
     );
 
     int computeTopN = (Integer) topNSpinner.getValue();
@@ -450,6 +467,8 @@ public class OptimizerWindow extends JFrame {
         weaponCombo.setSelectedItem(loaded.weaponType());
       }
 
+      transcendedBox.setSelected(loaded.armor().transcended());
+
       resultsModel.setBuilds(List.of());
       detailArea.setText("");
       status("Loaded " + new File(path).getName(), false);
@@ -472,7 +491,8 @@ public class OptimizerWindow extends JFrame {
         skillModel.requirements(),
         rarityBounds(),
         String.valueOf(rankingCombo.getSelectedItem()),
-        ((Number) equipmentBonusSpinner.getValue()).longValue()
+        ((Number) equipmentBonusSpinner.getValue()).longValue(),
+        transcendedBox.isSelected()
       );
       out.save(path);
       status("Saved " + new File(path).getName(), false);

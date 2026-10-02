@@ -59,7 +59,8 @@ class SolverServiceTest {
       List.of(new SkillRequirement("burst", 1)),
       new RarityBounds(4, null, null, null, null, null, null, null),
       source.ranking(),
-      source.equipmentSlotBonus()
+      source.equipmentSlotBonus(),
+      Boolean.TRUE
     );
 
     assertThat(merged.requiredSkills()).containsExactly(java.util.Map.entry("burst", 1));
@@ -69,6 +70,45 @@ class SolverServiceTest {
     assertThat(merged.weapons().includeIds()).isEqualTo(source.weapons().includeIds());
     assertThat(merged.ranking()).isEqualTo(source.ranking());
     assertThat(merged.equipmentSlotBonus()).isEqualTo(source.equipmentSlotBonus());
+    assertThat(merged.armor().transcended()).isTrue();
+  }
+
+  @Test
+  void buildConfigKeepsSourceTranscendedFlagWhenNotOverridden() {
+    SolverService service = new SolverService(data);
+    GearPoolConfig source = GearPoolConfig.load(
+      "src/main/resources/default-config.json"
+    ).withTranscendedArmor(true);
+
+    GearPoolConfig merged = service.buildConfig(
+      source,
+      "bow",
+      List.of(),
+      RarityBounds.unbounded(),
+      "free_slots",
+      null,
+      null
+    );
+
+    assertThat(merged.armor().transcended()).isTrue();
+  }
+
+  @Test
+  void buildConfigAppliesExplicitTranscendedFlag() {
+    SolverService service = new SolverService(data);
+    GearPoolConfig source = GearPoolConfig.load("src/main/resources/default-config.json");
+
+    GearPoolConfig merged = service.buildConfig(
+      source,
+      "bow",
+      List.of(),
+      RarityBounds.unbounded(),
+      "free_slots",
+      null,
+      Boolean.FALSE
+    );
+
+    assertThat(merged.armor().transcended()).isFalse();
   }
 
   @Test
@@ -80,6 +120,7 @@ class SolverServiceTest {
       List.of(),
       RarityBounds.unbounded(),
       "free_slots",
+      null,
       null
     );
 
@@ -95,6 +136,7 @@ class SolverServiceTest {
       List.of(new SkillRequirement("constitution", 5), new SkillRequirement("stamina surge", 3)),
       RarityBounds.unbounded(),
       "free_slots",
+      null,
       null
     );
     var result = service.solve(config, 3, 3);
@@ -116,6 +158,7 @@ class SolverServiceTest {
       List.of(new SkillRequirement("constitution", 5), new SkillRequirement("stamina surge", 3)),
       RarityBounds.unbounded(),
       "free_slots",
+      null,
       null
     );
     var result = service.solve(config, 10, 3);
@@ -136,7 +179,8 @@ class SolverServiceTest {
       List.of(new SkillRequirement("constitution", 5), new SkillRequirement("stamina surge", 3)),
       RarityBounds.unbounded(),
       "free_equipment_slots",
-      3000L
+      3000L,
+      null
     );
     var result = service.solve(config, 20, 20);
 

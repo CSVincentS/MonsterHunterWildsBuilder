@@ -83,8 +83,17 @@ public class Main {
 
     System.err.println("Resolving gear pool from " + configPath + "...");
     GearPoolConfig config = GearPoolConfig.load(configPath);
+
+    if (options.transcended() != null) {
+      config = config.withTranscendedArmor(options.transcended());
+    }
+
     GearPoolResolver resolver = new GearPoolResolver(data);
     SolverPool pool = resolver.resolve(config);
+
+    if (config.armor().transcended()) {
+      System.err.println("Armor modeled as fully transcended");
+    }
 
     System.err.println("Solving...");
     long start = System.currentTimeMillis();
@@ -146,7 +155,8 @@ public class Main {
     Integer showTopN,
     String ranking,
     String outputPath,
-    Long equipmentBonus
+    Long equipmentBonus,
+    Boolean transcended
   ) {}
 
   public static CliArguments parseArgs(String[] args) {
@@ -157,6 +167,7 @@ public class Main {
     String rankingName = null;
     String outputPath = null;
     Long equipmentBonus = null;
+    Boolean transcended = null;
     boolean dataDirConsumed = false;
     boolean configPathConsumed = false;
 
@@ -188,6 +199,12 @@ public class Main {
         case "--output" -> {
           outputPath = stringValue(args, ++i, "--output");
         }
+        case "--transcended" -> {
+          transcended = Boolean.TRUE;
+        }
+        case "--no-transcended" -> {
+          transcended = Boolean.FALSE;
+        }
         default -> {
           if (args[i].startsWith("-")) {
             throw new IllegalArgumentException("Unknown option: " + args[i]);
@@ -213,7 +230,8 @@ public class Main {
       showTopN,
       rankingName,
       outputPath,
-      equipmentBonus
+      equipmentBonus,
+      transcended
     );
   }
 
@@ -338,6 +356,12 @@ public class Main {
       "                    free level-3 decoration slot. Used by free_equipment_slots ranking."
     );
     System.out.println("  --output <file>    Write output to file instead of stdout");
+    System.out.println(
+      "  --transcended      Model armor at its fully transcended stats (overrides config)"
+    );
+    System.out.println(
+      "  --no-transcended   Model armor untranscended, even if the config says otherwise"
+    );
     System.out.println("  -h, --help         Show this help message");
   }
 }

@@ -105,4 +105,29 @@ class MainCliArgumentsTest {
       .isInstanceOf(IllegalArgumentException.class)
       .hasMessage("--top requires an integer, got many");
   }
+
+  @Test
+  void transcendedUnsetByDefault() {
+    assertThat(Main.parseArgs(new String[] {}).transcended()).isNull();
+  }
+
+  @Test
+  void transcendedFlagSetsTrue() {
+    assertThat(Main.parseArgs(new String[] { "--transcended" }).transcended()).isTrue();
+  }
+
+  @Test
+  void noTranscendedFlagSetsFalse() {
+    assertThat(Main.parseArgs(new String[] { "--no-transcended" }).transcended()).isFalse();
+  }
+
+  @Test
+  void lastTranscendenceFlagWins() {
+    assertThat(
+      Main.parseArgs(new String[] { "--transcended", "--no-transcended" }).transcended()
+    ).isFalse();
+    assertThat(
+      Main.parseArgs(new String[] { "--no-transcended", "--transcended" }).transcended()
+    ).isTrue();
+  }
 }

@@ -79,4 +79,21 @@ public record ArmorPiece(
   public int slotCount() {
     return slots.length;
   }
+
+  public ArmorPiece withSlotsAndMaxDefense(int[] slots, int maxDefense) {
+    return new ArmorPiece(
+      gameId,
+      setName,
+      kind,
+      slots,
+      skills,
+      baseDefense,
+      maxDefense,
+      rarity,
+      setBonusId,
+      setBonusRanks,
+      groupBonusId,
+      groupBonusRanks
+    );
+  }
 }
