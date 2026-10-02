@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -144,20 +146,61 @@ public class GameDataLoader {
   }
 
   private List<ArmorPiece> loadArmorPieces() {
+    JsonNode root = read("Armor.json");
+    Map<Integer, Map<Integer, Integer>> rankTables = collectBonusRankTables(root);
     List<ArmorPiece> pieces = new ArrayList<>();
 
-    for (JsonNode set : read("Armor.json")) {
+    for (JsonNode set : root) {
       int setId = set.get("game_id").asInt();
       String setName = enName(set);
       int setRarity = set.get("rarity").asInt();
-      int setBonusId = bonusId(set, "set_bonus", "set_bonus_id");
-      Map<Integer, Integer> setBonusRanks = bonusRanks(set.get("set_bonus"));
-      int groupBonusId = bonusId(set, "group_bonus", "group_bonus_id");
-      Map<Integer, Integer> groupBonusRanks = bonusRanks(set.get("group_bonus"));
+      int declaredSetBonusId = bonusId(set, "set_bonus", "set_bonus_id");
+      Map<Integer, Integer> declaredSetBonusRanks = bonusRanks(set.get("set_bonus"));
+      int declaredGroupBonusId = bonusId(set, "group_bonus", "group_bonus_id");
+      Map<Integer, Integer> declaredGroupBonusRanks = bonusRanks(set.get("group_bonus"));
+
+      List<JsonNode> setPieces = new ArrayList<>();
+      List<List<Integer>> carried = new ArrayList<>();
 
       for (JsonNode piece : set.get("pieces")) {
+        setPieces.add(piece);
+        carried.add(carriedBonusSkills(piece, rankTables));
+      }
+
+      int setBonusSkill =
+        declaredSetBonusId != 0 && !carried.stream().allMatch(List::isEmpty)
+          ? resolveSetBonusSkill(declaredSetBonusId, carried)
+          : 0;
+
+      boolean useCarried = carried.stream().anyMatch(ids -> !ids.isEmpty());
+
+      for (int i = 0; i < setPieces.size(); i++) {
+        JsonNode piece = setPieces.get(i);
         ArmorSlot kind = ArmorSlot.fromString(piece.get("kind").asText());
         JsonNode defense = piece.get("defense");
+
+        int setBonusId = declaredSetBonusId;
+        Map<Integer, Integer> setBonusRanks = declaredSetBonusRanks;
+        int groupBonusId = declaredGroupBonusId;
+        Map<Integer, Integer> groupBonusRanks = declaredGroupBonusRanks;
+
+        if (useCarried) {
+          setBonusId = 0;
+          setBonusRanks = Map.of();
+          groupBonusId = 0;
+          groupBonusRanks = Map.of();
+
+          for (int id : carried.get(i)) {
+            if (id == setBonusSkill && setBonusSkill != 0) {
+              setBonusId = id;
+              setBonusRanks = rankTables.get(id);
+            } else {
+              groupBonusId = id;
+              groupBonusRanks = rankTables.get(id);
+            }
+          }
+        }
+
         pieces.add(
           new ArmorPiece(
             setId,
@@ -178,6 +221,76 @@ public class GameDataLoader {
     }
 
     return pieces;
+  }
+
+  private static Map<Integer, Map<Integer, Integer>> collectBonusRankTables(JsonNode root) {
+    Map<Integer, Map<Integer, Integer>> tables = new HashMap<>();
+
+    for (JsonNode set : root) {
+      for (String field : List.of("set_bonus", "group_bonus")) {
+        JsonNode bonus = set.get(field);
+
+        if (bonus == null || bonus.isNull() || !bonus.has("skill_id")) {
+          continue;
+        }
+
+        Map<Integer, Integer> ranks = new HashMap<>(bonusRanks(bonus));
+
+        ranks.remove(0);
+
+        if (!ranks.isEmpty()) {
+          tables.put(bonus.get("skill_id").asInt(), Map.copyOf(ranks));
+        }
+      }
+    }
+
+    return Map.copyOf(tables);
+  }
+
+  private static List<Integer> carriedBonusSkills(
+    JsonNode piece,
+    Map<Integer, Map<Integer, Integer>> rankTables
+  ) {
+    List<Integer> ids = new ArrayList<>();
+    JsonNode skills = piece.get("skills");
+
+    if (skills == null || skills.isNull()) {
+      return ids;
+    }
+
+    skills.fields().forEachRemaining(entry -> {
+      int id = Integer.parseInt(entry.getKey());
+
+      if (entry.getValue().asInt() == 1 && rankTables.containsKey(id)) {
+        ids.add(id);
+      }
+    });
+
+    Collections.sort(ids);
+
+    return ids;
+  }
+
+  private static int resolveSetBonusSkill(int declaredSetBonusId, List<List<Integer>> carried) {
+    Map<Integer, Integer> pieceCounts = new HashMap<>();
+
+    for (List<Integer> ids : carried) {
+      for (int id : ids) {
+        pieceCounts.merge(id, 1, Integer::sum);
+      }
+    }
+
+    return pieceCounts
+      .entrySet()
+      .stream()
+      .sorted(
+        Comparator.<Map.Entry<Integer, Integer>>comparingInt(entry -> -entry.getValue())
+          .thenComparing(entry -> entry.getKey() == declaredSetBonusId ? 0 : 1)
+          .thenComparingInt(Map.Entry::getKey)
+      )
+      .map(Map.Entry::getKey)
+      .findFirst()
+      .orElse(0);
   }
 
   private ArmorTranscendenceTable loadArmorTranscendence() {
