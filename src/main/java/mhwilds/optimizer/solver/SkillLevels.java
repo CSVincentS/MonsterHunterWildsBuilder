@@ -9,10 +9,8 @@ final class SkillLevels {
   static final int BITS_PER_SKILL = NIBBLE_BITS;
   private static final long SKILL_MASK = 0xF;
 
-  /** 15 nibbles (60 bits): never touches the sign bit. */
   private static final int PACK_BUDGET_BITS = 60;
 
-  /** Probed positions; 16 keeps shift logic unambiguous. */
   static final int MAX_PACKED_SKILLS = 16;
 
   private SkillLevels() {}
@@ -68,7 +66,6 @@ final class SkillLevels {
     );
   }
 
-  /** Pointwise clamped subtraction. */
   static long sub(long need, long by) {
     long out = 0;
 

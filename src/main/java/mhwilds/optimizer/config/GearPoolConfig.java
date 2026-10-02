@@ -1,5 +1,7 @@
 package mhwilds.optimizer.config;
 
+import static java.lang.Boolean.FALSE;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,7 +21,8 @@ public record GearPoolConfig(
   @JsonProperty("weapons") WeaponConfig weapons,
   @JsonProperty("ignored_skills") List<Integer> ignoredSkills,
   @JsonProperty("ranking") String ranking,
-  @JsonProperty("equipment_slot_bonus") Long equipmentSlotBonus
+  @JsonProperty("equipment_slot_bonus") Long equipmentSlotBonus,
+  @JsonProperty("gogmazios_skills") Boolean gogmaziosSkills
 ) {
   public GearPoolConfig {
     if (requiredSkills == null) {
@@ -57,6 +60,10 @@ public record GearPoolConfig(
     if (equipmentSlotBonus == null) {
       equipmentSlotBonus = 1000L;
     }
+
+    if (gogmaziosSkills == null) {
+      gogmaziosSkills = FALSE;
+    }
   }
 
   public static GearPoolConfig load(String path) {
@@ -79,7 +86,7 @@ public record GearPoolConfig(
   }
 
   public GearPoolConfig withRequiredSkills(Map<String, Integer> requiredSkills) {
-    return new GearPoolConfig(
+    return copy(
       requiredSkills,
       weaponType,
       armor,
@@ -88,12 +95,13 @@ public record GearPoolConfig(
       weapons,
       ignoredSkills,
       ranking,
-      equipmentSlotBonus
+      equipmentSlotBonus,
+      gogmaziosSkills
     );
   }
 
   public GearPoolConfig withWeaponType(String weaponType) {
-    return new GearPoolConfig(
+    return copy(
       requiredSkills,
       weaponType,
       armor,
@@ -102,12 +110,13 @@ public record GearPoolConfig(
       weapons,
       ignoredSkills,
       ranking,
-      equipmentSlotBonus
+      equipmentSlotBonus,
+      gogmaziosSkills
     );
   }
 
   public GearPoolConfig withArmor(ArmorConfig armor) {
-    return new GearPoolConfig(
+    return copy(
       requiredSkills,
       weaponType,
       armor,
@@ -116,7 +125,8 @@ public record GearPoolConfig(
       weapons,
       ignoredSkills,
       ranking,
-      equipmentSlotBonus
+      equipmentSlotBonus,
+      gogmaziosSkills
     );
   }
 
@@ -135,7 +145,7 @@ public record GearPoolConfig(
   }
 
   public GearPoolConfig withDecorations(DecorationConfig decorations) {
-    return new GearPoolConfig(
+    return copy(
       requiredSkills,
       weaponType,
       armor,
@@ -144,12 +154,13 @@ public record GearPoolConfig(
       weapons,
       ignoredSkills,
       ranking,
-      equipmentSlotBonus
+      equipmentSlotBonus,
+      gogmaziosSkills
     );
   }
 
   public GearPoolConfig withAmulets(AmuletConfig amulets) {
-    return new GearPoolConfig(
+    return copy(
       requiredSkills,
       weaponType,
       armor,
@@ -158,12 +169,13 @@ public record GearPoolConfig(
       weapons,
       ignoredSkills,
       ranking,
-      equipmentSlotBonus
+      equipmentSlotBonus,
+      gogmaziosSkills
     );
   }
 
   public GearPoolConfig withWeapons(WeaponConfig weapons) {
-    return new GearPoolConfig(
+    return copy(
       requiredSkills,
       weaponType,
       armor,
@@ -172,12 +184,13 @@ public record GearPoolConfig(
       weapons,
       ignoredSkills,
       ranking,
-      equipmentSlotBonus
+      equipmentSlotBonus,
+      gogmaziosSkills
     );
   }
 
   public GearPoolConfig withRanking(String ranking) {
-    return new GearPoolConfig(
+    return copy(
       requiredSkills,
       weaponType,
       armor,
@@ -186,11 +199,53 @@ public record GearPoolConfig(
       weapons,
       ignoredSkills,
       ranking,
-      equipmentSlotBonus
+      equipmentSlotBonus,
+      gogmaziosSkills
     );
   }
 
   public GearPoolConfig withEquipmentSlotBonus(Long equipmentSlotBonus) {
+    return copy(
+      requiredSkills,
+      weaponType,
+      armor,
+      decorations,
+      amulets,
+      weapons,
+      ignoredSkills,
+      ranking,
+      equipmentSlotBonus,
+      gogmaziosSkills
+    );
+  }
+
+  public GearPoolConfig withGogmaziosSkills(Boolean gogmaziosSkills) {
+    return copy(
+      requiredSkills,
+      weaponType,
+      armor,
+      decorations,
+      amulets,
+      weapons,
+      ignoredSkills,
+      ranking,
+      equipmentSlotBonus,
+      gogmaziosSkills
+    );
+  }
+
+  private GearPoolConfig copy(
+    Map<String, Integer> requiredSkills,
+    String weaponType,
+    ArmorConfig armor,
+    DecorationConfig decorations,
+    AmuletConfig amulets,
+    WeaponConfig weapons,
+    List<Integer> ignoredSkills,
+    String ranking,
+    Long equipmentSlotBonus,
+    Boolean gogmaziosSkills
+  ) {
     return new GearPoolConfig(
       requiredSkills,
       weaponType,
@@ -200,7 +255,8 @@ public record GearPoolConfig(
       weapons,
       ignoredSkills,
       ranking,
-      equipmentSlotBonus
+      equipmentSlotBonus,
+      gogmaziosSkills
     );
   }
 

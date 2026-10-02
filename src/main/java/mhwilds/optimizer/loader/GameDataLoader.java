@@ -45,6 +45,8 @@ public class GameDataLoader {
     "series_id"
   );
 
+  private static final int GOGMA_UPGRADE_ZENNY_COST = 300;
+
   private final Path dataDir;
   private final ObjectMapper mapper = new ObjectMapper();
 
@@ -475,7 +477,29 @@ public class GameDataLoader {
       parseSkills(node.get("skills")),
       stringList(node.get("coatings")),
       Map.copyOf(extras),
-      node.get("rarity").asInt()
+      node.get("rarity").asInt(),
+      isGogmaziosWeapon(node)
+    );
+  }
+
+  private static boolean isGogmaziosWeapon(JsonNode node) {
+    if (node.get("rarity").asInt() != 8 || !node.get("series_id").isNull()) {
+      return false;
+    }
+
+    JsonNode crafting = node.get("crafting");
+
+    if (crafting == null || crafting.isNull()) {
+      return false;
+    }
+
+    JsonNode inputs = crafting.get("inputs");
+    JsonNode previousId = crafting.get("previous_id");
+
+    return (
+      crafting.get("zenny_cost").asInt() == GOGMA_UPGRADE_ZENNY_COST &&
+      (inputs == null || inputs.isNull() || inputs.isEmpty()) &&
+      (previousId == null || previousId.isNull())
     );
   }
 

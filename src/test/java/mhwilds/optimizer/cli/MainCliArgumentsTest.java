@@ -35,6 +35,26 @@ class MainCliArgumentsTest {
   }
 
   @Test
+  void gogmaziosDefaultsToUnsetSoTheConfigDecides() {
+    assertThat(Main.parseArgs(new String[] {}).gogmaziosSkills()).isNull();
+  }
+
+  @Test
+  void gogmaziosFlagIsExplicitlyTriState() {
+    assertThat(Main.parseArgs(new String[] { "--gogmazios" }).gogmaziosSkills()).isTrue();
+    assertThat(Main.parseArgs(new String[] { "--no-gogmazios" }).gogmaziosSkills()).isFalse();
+    assertThat(
+      Main.parseArgs(new String[] {
+        "data",
+        "cfg.json",
+        "--gogmazios",
+        "--top",
+        "3",
+      }).gogmaziosSkills()
+    ).isTrue();
+  }
+
+  @Test
   void flagsAndPositionalsCombine() {
     Main.CliArguments o = Main.parseArgs(new String[] {
       "data",

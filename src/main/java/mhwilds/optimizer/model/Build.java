@@ -9,8 +9,25 @@ public record Build(
   List<SlotAssignment> armorDecorations,
   List<SlotAssignment> weaponDecorations,
   AmuletRank amuletRank,
-  Weapon weapon
+  Weapon weapon,
+  WeaponRoll weaponRoll
 ) {
+  public Build {
+    if (weaponRoll == null) {
+      weaponRoll = WeaponRoll.NONE;
+    }
+  }
+
+  public Build(
+    ArmorPiece[] armorPieces,
+    List<SlotAssignment> armorDecorations,
+    List<SlotAssignment> weaponDecorations,
+    AmuletRank amuletRank,
+    Weapon weapon
+  ) {
+    this(armorPieces, armorDecorations, weaponDecorations, amuletRank, weapon, WeaponRoll.NONE);
+  }
+
   public ArmorPiece armorPiece(ArmorSlot slot) {
     return armorPieces[slot.ordinal()];
   }
@@ -83,6 +100,14 @@ public record Build(
       collectBonusTarget(counts, thresholds, piece.setBonusId(), piece.setBonusRanks());
       collectBonusTarget(counts, thresholds, piece.groupBonusId(), piece.groupBonusRanks());
     }
+
+    collectBonusTarget(
+      counts,
+      thresholds,
+      weaponRoll.setBonusSkillId(),
+      weaponRoll.setBonusRanks()
+    );
+    collectBonusTarget(counts, thresholds, weaponRoll.groupSkillId(), weaponRoll.groupBonusRanks());
 
     Map<Integer, Integer> all = new HashMap<>();
 
@@ -176,7 +201,15 @@ public record Build(
       }
     }
 
-    return score;
+    return score + gogmaziosRollScore();
+  }
+
+  public long gogmaziosRollScore() {
+    if (weapon == null || !weapon.gogmazios() || !weaponRoll.enabled()) {
+      return 0L;
+    }
+
+    return weaponRoll.emptyBonus();
   }
 
   public int omittedEquipmentCount() {

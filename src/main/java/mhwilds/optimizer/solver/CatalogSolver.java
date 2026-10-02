@@ -40,6 +40,8 @@ public final class CatalogSolver implements Solver {
   @Override
   public List<Build> solve(SolverPool pool) {
     SkillThresholds thresholds = pool.thresholds();
+    GogmaziosWeapons gogmazios =
+      pool.gogmazios() == null ? GogmaziosWeapons.DISABLED : pool.gogmazios();
 
     if (
       thresholds == null ||
@@ -98,7 +100,9 @@ public final class CatalogSolver implements Solver {
       Map<Integer, Integer> ranks = thresholds.setSkillRanksOf(id);
       requiredSet[j] = thresholds.required(id);
 
-      if (SetBonusActivation.levelFor(ArmorSlot.values().length, ranks) < requiredSet[j]) {
+      int maxPieces = ArmorSlot.values().length + (gogmazios.enabled() ? 1 : 0);
+
+      if (SetBonusActivation.levelFor(maxPieces, ranks) < requiredSet[j]) {
         return List.of();
       }
 
@@ -118,7 +122,12 @@ public final class CatalogSolver implements Solver {
     DecoFill fill = new DecoFill(pool.armorDecorations(), pool.weaponDecorations(), skillPos);
     GearOptions gear = new GearOptions(skillPos);
     List<AmuletOpt> amuOptions = gear.amuletOptions(pool.amuletRanks());
-    List<WeaponOpt> wepOptions = gear.weaponOptions(pool.weapons());
+    List<WeaponOpt> wepOptions = gear.weaponOptions(pool.weapons(), gogmazios, thresholds);
+
+    // Relaxing the armor aggregation is only worth its cost if a weapon that can actually lend the
+    // extra piece is in the pool to be chosen later.
+    boolean gogmaziosUsable =
+      gogmazios.enabled() && wepOptions.stream().anyMatch(w -> w.weapon().gogmazios());
 
     if (bonus == 0 && (amuOptions.isEmpty() || wepOptions.isEmpty())) {
       return List.of();
@@ -150,7 +159,8 @@ public final class CatalogSolver implements Solver {
       maxRank,
       setRanks,
       requiredSet,
-      bounds
+      bounds,
+      gogmaziosUsable
     );
     List<Aggregate> aggregates = armor.enumerate(bySlot, bonus);
 
@@ -160,7 +170,17 @@ public final class CatalogSolver implements Solver {
 
     aggregates.sort((x, y) -> aggregateOrder(x, y, bounds, bonus));
 
-    AggregateEvaluator evaluator = new AggregateEvaluator(n, required, bonus, bounds, fill);
+    AggregateEvaluator evaluator = new AggregateEvaluator(
+      n,
+      required,
+      bonus,
+      bounds,
+      fill,
+      setIds,
+      setRanks,
+      requiredSet,
+      gogmaziosUsable
+    );
 
     for (Aggregate aggregate : aggregates) {
       if (

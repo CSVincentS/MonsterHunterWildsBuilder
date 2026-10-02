@@ -269,4 +269,100 @@ class BuildTest {
 
     assertThat(build.combinedSkills()).doesNotContainKey(722735744);
   }
+
+  private static final Map<Integer, Integer> TWO_AND_FOUR = Map.of(2, 1, 4, 2);
+
+  private static Weapon gogmaziosWeapon() {
+    return new Weapon(
+      1,
+      "bow",
+      "Bow",
+      200,
+      -10,
+      new int[] {},
+      Map.of(),
+      List.of(),
+      Map.of(),
+      8,
+      true
+    );
+  }
+
+  private Build buildWithRoll(Weapon weapon, WeaponRoll roll) {
+    return new Build(
+      new ArmorPiece[] {
+        bonusedPiece("Set", ArmorSlot.HEAD, 722735744, TWO_AND_FOUR, 0, Map.of()),
+        makePiece(ArmorSlot.CHEST, new int[] {}, Map.of()),
+        makePiece(ArmorSlot.ARMS, new int[] {}, Map.of()),
+        makePiece(ArmorSlot.WAIST, new int[] {}, Map.of()),
+        makePiece(ArmorSlot.LEGS, new int[] {}, Map.of()),
+      },
+      List.of(),
+      List.of(),
+      null,
+      weapon,
+      roll
+    );
+  }
+
+  @Test
+  void weaponRollCountsAsOnePieceTowardASetBonus() {
+    Build withRoll = buildWithRoll(
+      gogmaziosWeapon(),
+      WeaponRoll.of(722735744, TWO_AND_FOUR, 0, Map.of())
+    );
+
+    assertThat(withRoll.setBonusSkills()).containsEntry(722735744, 1);
+    assertThat(withRoll.activeSetBonusSkills()).containsEntry(722735744, 1);
+
+    Build withoutRoll = buildWithRoll(gogmaziosWeapon(), WeaponRoll.unused());
+
+    assertThat(withoutRoll.setBonusSkills()).containsEntry(722735744, 0);
+    assertThat(withoutRoll.activeSetBonusSkills()).doesNotContainKey(722735744);
+  }
+
+  @Test
+  void unusedRollsAreWorthPointsAndUsedOnesAreNot() {
+    long both = buildWithRoll(gogmaziosWeapon(), WeaponRoll.unused()).gogmaziosRollScore();
+    long onlyGroup = buildWithRoll(
+      gogmaziosWeapon(),
+      WeaponRoll.of(722735744, TWO_AND_FOUR, 0, Map.of())
+    ).gogmaziosRollScore();
+    long bothUsed = buildWithRoll(
+      gogmaziosWeapon(),
+      WeaponRoll.of(722735744, TWO_AND_FOUR, 400, Map.of(3, 1))
+    ).gogmaziosRollScore();
+
+    assertThat(both).isEqualTo(4500);
+    assertThat(onlyGroup).isEqualTo(1500);
+    assertThat(bothUsed).isZero();
+
+    // Rolls are worth nothing on an ordinary weapon, or when the feature was never modelled.
+    assertThat(
+      buildWithRoll(
+        new Weapon(1, "bow", "Bow", 100, 0, new int[] {}, Map.of(), List.of()),
+        WeaponRoll.unused()
+      ).gogmaziosRollScore()
+    ).isZero();
+    assertThat(buildWithRoll(gogmaziosWeapon(), WeaponRoll.NONE).gogmaziosRollScore()).isZero();
+  }
+
+  @Test
+  void freeSlotScoreIncludesTheRollBonus() {
+    Build unused = buildWithRoll(gogmaziosWeapon(), WeaponRoll.unused());
+    Build used = buildWithRoll(
+      gogmaziosWeapon(),
+      WeaponRoll.of(722735744, TWO_AND_FOUR, 0, Map.of())
+    );
+
+    assertThat(unused.freeSlotScore()).isEqualTo(used.freeSlotScore() + 3000);
+  }
+
+  @Test
+  void oneRollCannotCountAsTwoPiecesOfTheSameBonus() {
+    WeaponRoll doubled = WeaponRoll.of(722735744, TWO_AND_FOUR, 722735744, TWO_AND_FOUR);
+
+    assertThat(doubled.setBonusEmpty()).isFalse();
+    assertThat(doubled.contributesTo(722735744)).isTrue();
+  }
 }

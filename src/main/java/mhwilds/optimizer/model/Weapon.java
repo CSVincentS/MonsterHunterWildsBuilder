@@ -13,7 +13,8 @@ public record Weapon(
   Map<Integer, Integer> skills,
   List<String> coatings,
   Map<String, Object> extraFields,
-  int rarity
+  int rarity,
+  boolean gogmazios
 ) {
   public Weapon {
     if (kind == null || kind.isBlank()) {
@@ -45,9 +46,36 @@ public record Weapon(
     int affinity,
     int[] slots,
     Map<Integer, Integer> skills,
+    List<String> coatings,
+    Map<String, Object> extraFields,
+    int rarity
+  ) {
+    this(
+      gameId,
+      kind,
+      name,
+      attackRaw,
+      affinity,
+      slots,
+      skills,
+      coatings,
+      extraFields,
+      rarity,
+      false
+    );
+  }
+
+  public Weapon(
+    int gameId,
+    String kind,
+    String name,
+    int attackRaw,
+    int affinity,
+    int[] slots,
+    Map<Integer, Integer> skills,
     List<String> coatings
   ) {
-    this(gameId, kind, name, attackRaw, affinity, slots, skills, coatings, Map.of(), 0);
+    this(gameId, kind, name, attackRaw, affinity, slots, skills, coatings, Map.of(), 0, false);
   }
 
   public Weapon(
@@ -61,7 +89,7 @@ public record Weapon(
     List<String> coatings,
     int rarity
   ) {
-    this(gameId, kind, name, attackRaw, affinity, slots, skills, coatings, Map.of(), rarity);
+    this(gameId, kind, name, attackRaw, affinity, slots, skills, coatings, Map.of(), rarity, false);
   }
 
   public int slotCount() {

@@ -2,6 +2,7 @@ package mhwilds.optimizer.loader;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.util.List;
 import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.Weapon;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,48 @@ class GameDataLoaderTest {
 
     assertThat(data.skills()).containsKey(-315492576);
     assertThat(data.skills().get(-315492576).maxRank()).isEqualTo(3);
+  }
+
+  @Test
+  void detectsGogmaziosWeaponsAndOnlyAttackFocusOnesSurviveFiltering() {
+    GameData data = new GameDataLoader("data").load();
+
+    List<Weapon> gogmazios = data.weapons().stream().filter(Weapon::gogmazios).toList();
+
+    // 14 weapons x 3 smithy focuses (attack, affinity, element).
+    assertThat(gogmazios).hasSize(42);
+    assertThat(gogmazios)
+      .extracting(w -> w.rarity())
+      .containsOnly(8);
+
+    // Attack focus is identified by the flat +300 upgrade sitting outside every crafting tree.
+    assertThat(gogmazios)
+      .extracting(w -> w.attackRaw())
+      .contains(200, 180, 190);
+    assertThat(gogmazios)
+      .filteredOn(w -> w.attackRaw() == 200)
+      .extracting(w -> w.affinity())
+      .containsOnly(-10);
+  }
+
+  @Test
+  void noOrdinaryWeaponIsMistakenForGogmazios() {
+    GameData data = new GameDataLoader("data").load();
+
+    // Rarity 8 alone is not enough: the 14 "Melting Point" swords also sit outside a crafting
+    // tree, but for a flat 200 zenny upgrade rather than Gogmazios' 300.
+    assertThat(data.weapons())
+      .filteredOn(w -> w.rarity() == 8)
+      .hasSize(411);
+    assertThat(data.weapons())
+      .filteredOn(w -> w.rarity() == 8 && !w.gogmazios())
+      .extracting(w -> w.name())
+      .contains("Angelbein", "Chrono Gear", "Melting Point");
+
+    assertThat(data.weapons())
+      .filteredOn(w -> w.rarity() == 8 && w.gogmazios())
+      .extracting(w -> w.name())
+      .doesNotContain("Angelbein", "Chrono Gear", "Melting Point");
   }
 
   @Test

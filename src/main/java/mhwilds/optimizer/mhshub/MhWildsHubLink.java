@@ -15,10 +15,6 @@ import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.model.SlotAssignment;
 
-/**
- * Builds mhwildshub builder share links for solver builds using the official
- * base64 + encodeURIComponent payload format.
- */
 public final class MhWildsHubLink {
 
   private static final String BASE_URL = "https://www.mhwildshub.com";

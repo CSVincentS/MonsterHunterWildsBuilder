@@ -21,6 +21,7 @@ final class SearchBounds {
   private final List<Integer> nonSetIds;
 
   private long weaponMaxSlotValue;
+  private long weaponMaxRollBonus;
   private final long[] bestAmu;
   private final long[] bestWeaponInnate;
   private final long[] bestArmorDeco;
@@ -64,6 +65,7 @@ final class SearchBounds {
 
     for (WeaponOpt w : wepOptions) {
       weaponMaxSlotValue = Math.max(weaponMaxSlotValue, w.slotValue());
+      weaponMaxRollBonus = Math.max(weaponMaxRollBonus, w.rollBonus());
 
       for (int i = 0; i < n; i++) {
         bestWeaponInnate[i] = Math.max(bestWeaponInnate[i], SkillLevels.levelAt(w.innatePack(), i));
@@ -199,7 +201,7 @@ final class SearchBounds {
       upper += weaponMaxSlotValue;
     }
 
-    return upper;
+    return upper + weaponMaxRollBonus;
   }
 
   private void addDeco(Decoration d, int[][] best, int[] bestTotal) {

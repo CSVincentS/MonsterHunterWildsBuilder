@@ -15,6 +15,7 @@ import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.SlotAssignment;
+import mhwilds.optimizer.model.WeaponRoll;
 import mhwilds.optimizer.ranking.RankingFactory;
 import mhwilds.optimizer.ranking.RankingStrategy;
 import mhwilds.optimizer.solver.CatalogSolver;
@@ -88,11 +89,25 @@ public class Main {
       config = config.withTranscendedArmor(options.transcended());
     }
 
+    if (options.gogmaziosSkills() != null) {
+      config = config.withGogmaziosSkills(options.gogmaziosSkills());
+    }
+
     GearPoolResolver resolver = new GearPoolResolver(data);
     SolverPool pool = resolver.resolve(config);
 
     if (config.armor().transcended()) {
       System.err.println("Armor modeled as fully transcended");
+    }
+
+    if (Boolean.TRUE.equals(config.gogmaziosSkills())) {
+      System.err.println(
+        "Gogmazios bonus skill rolls enabled (" +
+          pool.gogmazios().setBonusSkillIds().size() +
+          " set bonus skills, " +
+          pool.gogmazios().groupBonusSkillIds().size() +
+          " group skills)"
+      );
     }
 
     System.err.println("Solving...");
@@ -156,7 +171,8 @@ public class Main {
     String ranking,
     String outputPath,
     Long equipmentBonus,
-    Boolean transcended
+    Boolean transcended,
+    Boolean gogmaziosSkills
   ) {}
 
   public static CliArguments parseArgs(String[] args) {
@@ -168,6 +184,7 @@ public class Main {
     String outputPath = null;
     Long equipmentBonus = null;
     Boolean transcended = null;
+    Boolean gogmaziosSkills = null;
     boolean dataDirConsumed = false;
     boolean configPathConsumed = false;
 
@@ -205,6 +222,12 @@ public class Main {
         case "--no-transcended" -> {
           transcended = Boolean.FALSE;
         }
+        case "--gogmazios" -> {
+          gogmaziosSkills = Boolean.TRUE;
+        }
+        case "--no-gogmazios" -> {
+          gogmaziosSkills = Boolean.FALSE;
+        }
         default -> {
           if (args[i].startsWith("-")) {
             throw new IllegalArgumentException("Unknown option: " + args[i]);
@@ -231,7 +254,8 @@ public class Main {
       rankingName,
       outputPath,
       equipmentBonus,
-      transcended
+      transcended,
+      gogmaziosSkills
     );
   }
 
@@ -310,6 +334,15 @@ public class Main {
     out.printf("  Amulet: %s%n", build.amuletRank() != null ? build.amuletRank().name() : "none");
     out.printf("  Weapon: %s%n", build.weapon() != null ? build.weapon().name() : "none");
 
+    if (build.weapon() != null && build.weapon().gogmazios() && build.weaponRoll().enabled()) {
+      WeaponRoll roll = build.weaponRoll();
+      out.printf(
+        "  Weapon rolls: set=%s group=%s%n",
+        roll.setBonusEmpty() ? "unused" : skillName(skillMap, roll.setBonusSkillId()),
+        roll.groupEmpty() ? "unused" : skillName(skillMap, roll.groupSkillId())
+      );
+    }
+
     out.print("  Skills:");
     Map<Integer, Integer> skills = build.combinedSkills();
     if (skills.isEmpty()) {
@@ -328,6 +361,12 @@ public class Main {
     }
     out.println();
     out.println();
+  }
+
+  private static String skillName(Map<Integer, Skill> skillMap, int skillId) {
+    Skill skill = skillMap.get(skillId);
+
+    return skill != null ? skill.name() : String.valueOf(skillId);
   }
 
   private static void printUsage() {
@@ -362,6 +401,13 @@ public class Main {
     System.out.println(
       "  --no-transcended   Model armor untranscended, even if the config says otherwise"
     );
+    System.out.println(
+      "  --no-gogmazios     Allow all weapons again and model no bonus skill rolls"
+    );
+    System.out.println(
+      "  --gogmazios        Restrict weapons to Gogmazios and roll their bonus skills (overrides"
+    );
+    System.out.println("                    config). Excludes every other weapon of this kind.");
     System.out.println("  -h, --help         Show this help message");
   }
 }

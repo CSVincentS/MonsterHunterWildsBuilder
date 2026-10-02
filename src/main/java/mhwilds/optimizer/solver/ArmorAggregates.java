@@ -1,6 +1,7 @@
 package mhwilds.optimizer.solver;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -10,11 +11,6 @@ import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.model.SetBonusActivation;
 import mhwilds.optimizer.model.SlotScore;
 
-/**
- * Collapses armor combinations into aggregate signatures (capped required-skill levels, slot
- * multiset, set-bonus piece counts, worn-slot subset) keeping only the highest-defense
- * representative of each.
- */
 final class ArmorAggregates {
 
   static final int SLOT_COUNT = ArmorSlot.values().length;
@@ -29,6 +25,7 @@ final class ArmorAggregates {
   record Aggregate(
     Signature signature,
     int[] slotCounts,
+    int[] setCounts,
     int worn,
     int defense,
     long slotValue,
@@ -59,6 +56,8 @@ final class ArmorAggregates {
   private final int[] requiredSet;
   private final SearchBounds bounds;
 
+  private final int[] weaponSetPieces;
+
   ArmorAggregates(
     int n,
     List<Integer> setIds,
@@ -66,7 +65,8 @@ final class ArmorAggregates {
     int[] maxRank,
     List<Map<Integer, Integer>> setRanks,
     int[] requiredSet,
-    SearchBounds bounds
+    SearchBounds bounds,
+    boolean gogmaziosSkills
   ) {
     this.n = n;
     this.nSet = setIds.size();
@@ -76,6 +76,12 @@ final class ArmorAggregates {
     this.setRanks = setRanks;
     this.requiredSet = requiredSet;
     this.bounds = bounds;
+
+    this.weaponSetPieces = new int[this.nSet];
+
+    if (gogmaziosSkills) {
+      Arrays.fill(this.weaponSetPieces, 1);
+    }
   }
 
   List<Aggregate> enumerate(EnumMap<ArmorSlot, List<ArmorPiece>> bySlot, long bonus) {
@@ -121,16 +127,8 @@ final class ArmorAggregates {
 
     for (Map.Entry<Signature, Builder> e : dp.entrySet()) {
       Builder v = e.getValue();
-      boolean ok = true;
 
-      for (int j = 0; j < nSet; j++) {
-        if (SetBonusActivation.levelFor(v.setCount[j], setRanks.get(j)) < requiredSet[j]) {
-          ok = false;
-          break;
-        }
-      }
-
-      if (!ok) {
+      if (!setBonusReached(v.setCount, 0)) {
         continue;
       }
 
@@ -138,6 +136,7 @@ final class ArmorAggregates {
         new Aggregate(
           e.getKey(),
           v.slotCounts.clone(),
+          v.setCount.clone(),
           v.worn,
           v.defense,
           v.slotValue,
@@ -147,6 +146,18 @@ final class ArmorAggregates {
     }
 
     return aggregates;
+  }
+
+  private boolean setBonusReached(int[] setCount, int extraPieces) {
+    for (int j = 0; j < nSet; j++) {
+      int pieces = setCount[j] + extraPieces + weaponSetPieces[j];
+
+      if (SetBonusActivation.levelFor(pieces, setRanks.get(j)) < requiredSet[j]) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private Builder extend(Builder v, int pos, ArmorPiece p) {
@@ -212,13 +223,7 @@ final class ArmorAggregates {
         }
       }
 
-      for (int j = 0; j < nSet; j++) {
-        if (SetBonusActivation.levelFor(r.setCount[j], setRanks.get(j)) < requiredSet[j]) {
-          return false;
-        }
-      }
-
-      return true;
+      return setBonusReached(r.setCount, 0);
     }
 
     int piecesLeft = SLOT_COUNT - chosen;
@@ -231,15 +236,7 @@ final class ArmorAggregates {
       }
     }
 
-    for (int j = 0; j < nSet; j++) {
-      if (
-        SetBonusActivation.levelFor(r.setCount[j] + piecesLeft, setRanks.get(j)) < requiredSet[j]
-      ) {
-        return false;
-      }
-    }
-
-    return true;
+    return setBonusReached(r.setCount, piecesLeft);
   }
 
   private static int totalSlots(int[] slotCounts) {

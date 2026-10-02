@@ -87,6 +87,9 @@ public class OptimizerWindow extends JFrame {
   private final JCheckBox transcendedBox = new JCheckBox(
     "Transcended armor (max level, extra defense + deco slots)"
   );
+  private final JCheckBox gogmaziosBox = new JCheckBox(
+    "Gogmazios weapons only (with bonus skill rolls)"
+  );
 
   private final JButton solveButton = new JButton("Solve");
   private final JTextArea detailArea = new JTextArea();
@@ -124,6 +127,7 @@ public class OptimizerWindow extends JFrame {
     equipmentBonusSpinner.setValue(bonus != null ? Math.max(0, bonus) : 1000);
     equipmentBonusSpinner.setEnabled(RankingFactory.FREE_EQUIPMENT_SLOTS.equals(config.ranking()));
     transcendedBox.setSelected(config.armor().transcended());
+    gogmaziosBox.setSelected(Boolean.TRUE.equals(config.gogmaziosSkills()));
 
     seedSkillsFrom(config);
 
@@ -292,6 +296,7 @@ public class OptimizerWindow extends JFrame {
     addOptionRow(optionsPanel, 3, "Ranking:", rankingCombo);
     addOptionRow(optionsPanel, 4, "Equipment slot bonus:", equipmentBonusSpinner);
     addFullWidthOptionRow(optionsPanel, 5, transcendedBox);
+    addFullWidthOptionRow(optionsPanel, 6, gogmaziosBox);
 
     rankingCombo.addActionListener(e ->
       equipmentBonusSpinner.setEnabled(
@@ -400,7 +405,8 @@ public class OptimizerWindow extends JFrame {
       bounds,
       String.valueOf(rankingCombo.getSelectedItem()),
       ((Number) equipmentBonusSpinner.getValue()).longValue(),
-      transcendedBox.isSelected()
+      transcendedBox.isSelected(),
+      gogmaziosBox.isSelected()
     );
 
     int computeTopN = (Integer) topNSpinner.getValue();
@@ -468,6 +474,7 @@ public class OptimizerWindow extends JFrame {
       }
 
       transcendedBox.setSelected(loaded.armor().transcended());
+      gogmaziosBox.setSelected(Boolean.TRUE.equals(loaded.gogmaziosSkills()));
 
       resultsModel.setBuilds(List.of());
       detailArea.setText("");
@@ -492,7 +499,8 @@ public class OptimizerWindow extends JFrame {
         rarityBounds(),
         String.valueOf(rankingCombo.getSelectedItem()),
         ((Number) equipmentBonusSpinner.getValue()).longValue(),
-        transcendedBox.isSelected()
+        transcendedBox.isSelected(),
+        gogmaziosBox.isSelected()
       );
       out.save(path);
       status("Saved " + new File(path).getName(), false);

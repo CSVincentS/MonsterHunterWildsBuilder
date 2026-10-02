@@ -15,5 +15,33 @@ public record SolverPool(
   List<AmuletRank> amuletRanks,
   List<Weapon> weapons,
   Map<Integer, Skill> skillMap,
-  SkillThresholds thresholds
-) {}
+  SkillThresholds thresholds,
+  GogmaziosWeapons gogmazios
+) {
+  public SolverPool {
+    if (gogmazios == null) {
+      gogmazios = GogmaziosWeapons.DISABLED;
+    }
+  }
+
+  public SolverPool(
+    List<ArmorPiece> armorPieces,
+    List<Decoration> armorDecorations,
+    List<Decoration> weaponDecorations,
+    List<AmuletRank> amuletRanks,
+    List<Weapon> weapons,
+    Map<Integer, Skill> skillMap,
+    SkillThresholds thresholds
+  ) {
+    this(
+      armorPieces,
+      armorDecorations,
+      weaponDecorations,
+      amuletRanks,
+      weapons,
+      skillMap,
+      thresholds,
+      GogmaziosWeapons.DISABLED
+    );
+  }
+}

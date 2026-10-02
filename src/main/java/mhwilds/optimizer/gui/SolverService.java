@@ -48,6 +48,28 @@ public class SolverService {
     Long equipmentBonus,
     Boolean transcended
   ) {
+    return buildConfig(
+      source,
+      weaponType,
+      requirements,
+      bounds,
+      ranking,
+      equipmentBonus,
+      transcended,
+      null
+    );
+  }
+
+  public GearPoolConfig buildConfig(
+    GearPoolConfig source,
+    String weaponType,
+    List<SkillRequirement> requirements,
+    RarityBounds bounds,
+    String ranking,
+    Long equipmentBonus,
+    Boolean transcended,
+    Boolean gogmaziosSkills
+  ) {
     Map<String, Integer> required = new HashMap<>();
 
     for (SkillRequirement req : requirements) {
@@ -88,9 +110,8 @@ public class SolverService {
         )
       )
       .withRanking(ranking != null ? ranking : source.ranking())
-      .withEquipmentSlotBonus(
-        equipmentBonus != null ? equipmentBonus : source.equipmentSlotBonus()
-      );
+      .withEquipmentSlotBonus(equipmentBonus != null ? equipmentBonus : source.equipmentSlotBonus())
+      .withGogmaziosSkills(gogmaziosSkills != null ? gogmaziosSkills : source.gogmaziosSkills());
   }
 
   public SolveResult solve(GearPoolConfig config, int computeTopN, int showTopN) {

@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import mhwilds.optimizer.loader.GameData;
@@ -19,6 +21,7 @@ import mhwilds.optimizer.model.Decoration;
 import mhwilds.optimizer.model.SlotScore;
 import mhwilds.optimizer.model.SlotTarget;
 import mhwilds.optimizer.model.Weapon;
+import mhwilds.optimizer.solver.CatalogSolver;
 import mhwilds.optimizer.solver.SolverPool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -384,6 +387,89 @@ class GearPoolResolverTest {
     Path configPath = tmp.resolve("rarity-" + json.hashCode() + ".json");
     Files.writeString(configPath, json);
     return GearPoolConfig.load(configPath.toString());
+  }
+
+  private GearPoolConfig bowConfig(String gogmaziosSkills) throws Exception {
+    String json = """
+    {
+      "required_skills": {},
+      "weapon_type": "bow",
+      "armor": { "exclude_sets": [], "exclude_skills": [] },
+      "decorations": { "exclude_ids": [] },
+      "amulets": { "exclude_families": [] },
+      "weapons": { "include_ids": [] },
+      "ignored_skills": [],
+      "ranking": "free_slots",
+      "gogmazios_skills": %s
+    }
+    """.formatted(gogmaziosSkills);
+    Path configPath = tmp.resolve("gogmazios-" + json.hashCode() + ".json");
+    Files.writeString(configPath, json);
+
+    return GearPoolConfig.load(configPath.toString());
+  }
+
+  @Test
+  void gogmaziosOptionRestrictsThePoolToThatOneBow() throws Exception {
+    SolverPool enabled = new GearPoolResolver(data).resolve(bowConfig("true"));
+
+    assertThat(enabled.gogmazios().enabled()).isTrue();
+    assertThat(enabled.weapons())
+      .hasSize(1)
+      .allSatisfy(w -> {
+        assertThat(w.gogmazios()).isTrue();
+        assertThat(w.name()).isEqualTo("Calamitous Angel");
+        assertThat(w.attackRaw()).isEqualTo(200);
+        assertThat(w.affinity()).isEqualTo(-10);
+      });
+
+    // Without the option the whole bow pool is available, Gogmazios attack focus included.
+    SolverPool off = new GearPoolResolver(data).resolve(bowConfig("false"));
+
+    assertThat(off.gogmazios().enabled()).isFalse();
+    assertThat(off.weapons()).hasSizeGreaterThan(1);
+    assertThat(off.weapons()).filteredOn(Weapon::gogmazios).hasSize(1);
+    assertThat(off.weapons()).anyMatch(w -> !w.gogmazios());
+  }
+
+  @Test
+  void skillsReachableFromBothRollSlotsShareThresholds() throws Exception {
+    SolverPool pool = new GearPoolResolver(data).resolve(bowConfig("true"));
+
+    Set<Integer> setIds = pool.gogmazios().setBonusSkillIds();
+    Set<Integer> groupIds = pool.gogmazios().groupBonusSkillIds();
+
+    assertThat(setIds).isNotEmpty().contains(31540);
+    assertThat(groupIds).isNotEmpty().contains(4554);
+
+    Map<Integer, Map<Integer, Integer>> ranks = pool.gogmazios().skillRanks();
+
+    for (Integer id : intersection(setIds, groupIds)) {
+      assertThat(ranks.get(id))
+        .as("thresholds for skill %s reached from either roll slot", id)
+        .isNotNull();
+    }
+
+    // Omega Attire's "Omega Resonance" is a set bonus and Akuma's "Master of the Fist" a group
+    // skill; neither leaks into the other slot's pool for this bow configuration.
+    assertThat(setIds).doesNotContain(4554);
+    assertThat(groupIds).doesNotContain(31540);
+  }
+
+  @Test
+  void gogmaziosOptionYieldsAnEmptyPoolWhenTheKindHasNone() throws Exception {
+    SolverPool pool = new GearPoolResolver(fabricatedData()).resolve(bowConfig("true"));
+
+    assertThat(pool.weapons()).isEmpty();
+    assertThat(new CatalogSolver(10, 0L).solve(pool)).isEmpty();
+  }
+
+  private Set<Integer> intersection(Set<Integer> a, Set<Integer> b) {
+    Set<Integer> out = new HashSet<>(a);
+
+    out.retainAll(b);
+
+    return out;
   }
 
   @Test

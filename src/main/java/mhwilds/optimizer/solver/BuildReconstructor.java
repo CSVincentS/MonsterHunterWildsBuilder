@@ -5,6 +5,7 @@ import java.util.List;
 import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.model.SlotAssignment;
+import mhwilds.optimizer.model.WeaponRoll;
 import mhwilds.optimizer.solver.ArmorAggregates.Aggregate;
 import mhwilds.optimizer.solver.DecoFill.Step;
 import mhwilds.optimizer.solver.GearOptions.AmuletOpt;
@@ -73,7 +74,8 @@ final class BuildReconstructor {
       armorAssign,
       weaponAssign,
       amulet == null ? null : amulet.rank(),
-      weapon == null ? null : weapon.weapon()
+      weapon == null ? null : weapon.weapon(),
+      weapon == null ? WeaponRoll.NONE : weapon.roll()
     );
   }
 }

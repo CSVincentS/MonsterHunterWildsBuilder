@@ -3,15 +3,26 @@ package mhwilds.optimizer.solver;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import mhwilds.optimizer.model.AmuletRank;
 import mhwilds.optimizer.model.SlotScore;
 import mhwilds.optimizer.model.Weapon;
+import mhwilds.optimizer.model.WeaponRoll;
 
 final class GearOptions {
 
   record AmuletOpt(AmuletRank rank, long pack) {}
 
-  record WeaponOpt(Weapon weapon, long innatePack, long slotValue, int[] counts) {}
+  record WeaponOpt(Weapon weapon, long innatePack, long slotValue, int[] counts, WeaponRoll roll) {
+    boolean contributesTo(int skillId) {
+      return weapon.gogmazios() && roll.contributesTo(skillId);
+    }
+
+    long rollBonus() {
+      return weapon.gogmazios() ? roll.emptyBonus() : 0L;
+    }
+  }
 
   private final Map<Integer, Integer> skillPos;
   private final int n;
@@ -70,8 +81,14 @@ final class GearOptions {
     return strict;
   }
 
-  List<WeaponOpt> weaponOptions(List<Weapon> weapons) {
+  List<WeaponOpt> weaponOptions(
+    List<Weapon> weapons,
+    GogmaziosWeapons gogmazios,
+    SkillThresholds thresholds
+  ) {
     List<WeaponOpt> opts = new ArrayList<>();
+    int[] setChoices = rollChoices(gogmazios.setBonusSkillIds(), thresholds);
+    int[] groupChoices = rollChoices(gogmazios.groupBonusSkillIds(), thresholds);
 
     for (Weapon w : weapons) {
       int[] counts = new int[3];
@@ -82,17 +99,61 @@ final class GearOptions {
         }
       }
 
-      opts.add(
-        new WeaponOpt(
-          w,
-          SkillLevels.packOf(w.skills(), skillPos),
-          SlotScore.score(w.slots()),
-          counts
-        )
-      );
+      long innatePack = SkillLevels.packOf(w.skills(), skillPos);
+      long slotValue = SlotScore.score(w.slots());
+
+      if (!gogmazios.enabled() || !w.gogmazios()) {
+        opts.add(new WeaponOpt(w, innatePack, slotValue, counts, WeaponRoll.NONE));
+        continue;
+      }
+
+      for (int setBonusSkillId : setChoices) {
+        for (int groupBonusSkillId : groupChoices) {
+          // One weapon lends one piece per bonus skill, so a skill can never be counted twice.
+          if (groupBonusSkillId != 0 && groupBonusSkillId == setBonusSkillId) {
+            continue;
+          }
+
+          opts.add(
+            new WeaponOpt(
+              w,
+              innatePack,
+              slotValue,
+              counts,
+              new WeaponRoll(
+                setBonusSkillId,
+                gogmazios.skillRanks().getOrDefault(setBonusSkillId, Map.of()),
+                groupBonusSkillId,
+                gogmazios.skillRanks().getOrDefault(groupBonusSkillId, Map.of())
+              )
+            )
+          );
+        }
+      }
     }
 
     return pruneWeapons(opts);
+  }
+
+  private int[] rollChoices(Set<Integer> pool, SkillThresholds thresholds) {
+    Set<Integer> choices = new TreeSet<>();
+
+    choices.add(0);
+
+    for (int skillId : pool) {
+      if (thresholds.required(skillId) > 0) {
+        choices.add(skillId);
+      }
+    }
+
+    int[] result = new int[choices.size()];
+    int i = 0;
+
+    for (int id : choices) {
+      result[i++] = id;
+    }
+
+    return result;
   }
 
   private List<WeaponOpt> pruneWeapons(List<WeaponOpt> opts) {

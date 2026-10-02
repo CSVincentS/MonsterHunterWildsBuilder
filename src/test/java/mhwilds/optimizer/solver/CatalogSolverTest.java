@@ -1,5 +1,7 @@
 package mhwilds.optimizer.solver;
 
+import static java.lang.Boolean.FALSE;
+import static java.lang.Boolean.TRUE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
@@ -8,6 +10,7 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import mhwilds.optimizer.config.GearPoolConfig;
 import mhwilds.optimizer.config.GearPoolResolver;
@@ -21,6 +24,7 @@ import mhwilds.optimizer.model.Decoration;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.SlotTarget;
 import mhwilds.optimizer.model.Weapon;
+import mhwilds.optimizer.model.WeaponRoll;
 import org.junit.jupiter.api.Test;
 
 class CatalogSolverTest {
@@ -59,8 +63,29 @@ class CatalogSolverTest {
     );
   }
 
+  private static ArmorPiece groupPiece(ArmorSlot kind, int bonusId) {
+    return new ArmorPiece(
+      0,
+      "GroupA",
+      kind,
+      new int[] {},
+      Map.of(),
+      0,
+      0,
+      0,
+      0,
+      Map.of(),
+      bonusId,
+      Map.of(3, 1)
+    );
+  }
+
   private static Weapon weapon(int id, int[] slots, Map<Integer, Integer> skills) {
     return new Weapon(id, "bow", "W" + id, 100, 0, slots, skills, List.of());
+  }
+
+  private static Weapon gogmaziosWeapon(int id, int[] slots, Map<Integer, Integer> skills) {
+    return new Weapon(id, "bow", "W" + id, 200, 0, slots, skills, List.of(), Map.of(), 8, true);
   }
 
   private static Decoration deco(int id, int level, Map<Integer, Integer> skills, SlotTarget on) {
@@ -82,6 +107,27 @@ class CatalogSolverTest {
     return new SolverPool(pieces, armorDecos, weaponDecos, amulets, weapons, SKILLS, thr);
   }
 
+  private static SolverPool gogmaziosPool(
+    List<ArmorPiece> pieces,
+    List<Decoration> armorDecos,
+    List<Decoration> weaponDecos,
+    List<AmuletRank> amulets,
+    List<Weapon> weapons,
+    SkillThresholds thr,
+    GogmaziosWeapons gogmazios
+  ) {
+    return new SolverPool(
+      pieces,
+      armorDecos,
+      weaponDecos,
+      amulets,
+      weapons,
+      SKILLS,
+      thr,
+      gogmazios
+    );
+  }
+
   @Test
   void matchesBruteForceOracleOnCraftedPools() {
     OracleCase scenario = oracleCaseForWeaponSpill();
@@ -95,6 +141,12 @@ class CatalogSolverTest {
 
     scenario = oracleCaseForDecoOnly();
     assertOracleEquivalence("deco-covered residual", scenario);
+
+    scenario = oracleCaseForGogmaziosRoll();
+    assertOracleEquivalence("gogmazios set bonus roll", scenario);
+
+    scenario = oracleCaseForGogmaziosGroupRoll();
+    assertOracleEquivalence("gogmazios group bonus roll", scenario);
   }
 
   private record OracleCase(SolverPool pool, long bonus, String name) {}
@@ -177,6 +229,109 @@ class CatalogSolverTest {
     );
 
     return new OracleCase(p, 1000L, "set with omission");
+  }
+
+  private SolverPool gogmaziosSetRollPool(GogmaziosWeapons gogmazios) {
+    return gogmaziosPool(
+      List.of(
+        setPiece(ArmorSlot.HEAD, 300),
+        setPiece(ArmorSlot.CHEST, 300),
+        setPiece(ArmorSlot.ARMS, 300),
+        piece(ArmorSlot.WAIST, new int[] {}, Map.of(100, 1)),
+        piece(ArmorSlot.LEGS, new int[] { 3 }, Map.of(100, 1))
+      ),
+      List.of(),
+      List.of(),
+      List.of(amulet(1)),
+      List.of(gogmaziosWeapon(1, new int[] { 3 }, Map.of()), weapon(2, new int[] { 3 }, Map.of())),
+      new SkillThresholds(Map.of(300, 2, 100, 3), Map.of(300, Map.of(2, 1, 4, 2))),
+      gogmazios
+    );
+  }
+
+  private OracleCase oracleCaseForGogmaziosRoll() {
+    return new OracleCase(
+      gogmaziosSetRollPool(
+        GogmaziosWeapons.enabled(Set.of(300), Set.of(), Map.of(300, Map.of(2, 1, 4, 2)))
+      ),
+      0L,
+      "gogmazios set bonus roll"
+    );
+  }
+
+  private SolverPool gogmaziosGroupRollPool(GogmaziosWeapons gogmazios) {
+    return gogmaziosPool(
+      List.of(
+        groupPiece(ArmorSlot.HEAD, 400),
+        groupPiece(ArmorSlot.CHEST, 400),
+        piece(ArmorSlot.ARMS, new int[] { 3 }, Map.of(100, 1)),
+        piece(ArmorSlot.WAIST, new int[] {}, Map.of()),
+        piece(ArmorSlot.LEGS, new int[] {}, Map.of())
+      ),
+      List.of(),
+      List.of(),
+      List.of(amulet(1)),
+      List.of(gogmaziosWeapon(1, new int[] { 3 }, Map.of())),
+      new SkillThresholds(Map.of(400, 1, 100, 2), Map.of(400, Map.of(3, 1))),
+      gogmazios
+    );
+  }
+
+  private OracleCase oracleCaseForGogmaziosGroupRoll() {
+    return new OracleCase(
+      gogmaziosGroupRollPool(
+        GogmaziosWeapons.enabled(Set.of(), Set.of(400), Map.of(400, Map.of(3, 1)))
+      ),
+      0L,
+      "gogmazios group bonus roll"
+    );
+  }
+
+  @Test
+  void gogmaziosRollIsWhatUnlocksTheRequiredBonus() {
+    SolverPool setOn = gogmaziosSetRollPool(
+      GogmaziosWeapons.enabled(Set.of(300), Set.of(), Map.of(300, Map.of(2, 1, 4, 2)))
+    );
+    SolverPool groupOn = gogmaziosGroupRollPool(
+      GogmaziosWeapons.enabled(Set.of(), Set.of(400), Map.of(400, Map.of(3, 1)))
+    );
+
+    assertThat(new CatalogSolver(10).solve(setOn)).isNotEmpty();
+    assertThat(new CatalogSolver(10).solve(groupOn)).isNotEmpty();
+
+    assertThat(new CatalogSolver(10).solve(withoutGogmazios(setOn))).isEmpty();
+    assertThat(new CatalogSolver(10).solve(withoutGogmazios(groupOn))).isEmpty();
+  }
+
+  private SolverPool withoutGogmazios(SolverPool in) {
+    return new SolverPool(
+      in.armorPieces(),
+      in.armorDecorations(),
+      in.weaponDecorations(),
+      in.amuletRanks(),
+      in.weapons(),
+      in.skillMap(),
+      in.thresholds(),
+      GogmaziosWeapons.DISABLED
+    );
+  }
+
+  @Test
+  void unusedRollsAreScoredButUsedOnesAreNot() {
+    SolverPool pool = gogmaziosSetRollPool(
+      GogmaziosWeapons.enabled(Set.of(300), Set.of(), Map.of(300, Map.of(2, 1, 4, 2)))
+    );
+    List<Build> builds = new CatalogSolver(10).solve(pool);
+
+    assertThat(builds).isNotEmpty();
+
+    for (Build build : builds) {
+      assertThat(build.weapon()).isNotNull();
+      assertThat(build.weapon().gogmazios()).isTrue();
+      assertThat(build.weaponRoll().setBonusSkillId()).isEqualTo(300);
+      assertThat(build.weaponRoll().groupEmpty()).isTrue();
+      assertThat(build.setBonusSkills()).containsEntry(300, 2);
+    }
   }
 
   private void assertOracleEquivalence(String name, OracleCase c) {
@@ -282,20 +437,6 @@ class CatalogSolverTest {
   ) {
     SkillThresholds thr = pool.thresholds();
 
-    for (Integer setSkill : setSkills) {
-      int count = 0;
-
-      for (ArmorPiece p : chosen) {
-        if (p != null && (p.setBonusId() == setSkill || p.groupBonusId() == setSkill)) {
-          count++;
-        }
-      }
-
-      if (activationLevel(thr.setSkillRanksOf(setSkill), count) < thr.required(setSkill)) {
-        return;
-      }
-    }
-
     int[] need = new int[nonSet.size()];
 
     for (int k = 0; k < nonSet.size(); k++) {
@@ -349,33 +490,105 @@ class CatalogSolverTest {
       int[] needA = needAfter(chosen, need, nonSet, amulet);
 
       for (Weapon weapon : weapons) {
-        int[] needW = needAfter(chosen, needA, nonSet, weapon);
-        List<int[]> allSlots = new ArrayList<>(slots);
-
-        if (weapon != null) {
-          for (int s : weapon.slots()) {
-            allSlots.add(new int[] { s, WEAPON });
+        for (WeaponRoll roll : oracleRolls(pool, weapon)) {
+          if (!oracleSetBonusesMet(chosen, setSkills, thr, roll)) {
+            continue;
           }
+
+          int[] needW = needAfter(chosen, needA, nonSet, weapon);
+          List<int[]> allSlots = new ArrayList<>(slots);
+
+          if (weapon != null) {
+            for (int s : weapon.slots()) {
+              allSlots.add(new int[] { s, WEAPON });
+            }
+          }
+
+          long cost = oracleFill(
+            needW,
+            allSlots,
+            pool.armorDecorations(),
+            pool.weaponDecorations(),
+            nonSet
+          );
+
+          if (cost == INF) {
+            continue;
+          }
+
+          long weaponSlotValue = weapon == null ? 0 : slotScore(weapon.slots());
+          int omitted = omittedArmor + (amulet == null ? 1 : 0) + (weapon == null ? 1 : 0);
+          long score =
+            armorSlotValue + weaponSlotValue - cost + bonus * omitted + roll.emptyBonus();
+          scores.add(score);
         }
+      }
+    }
+  }
 
-        long cost = oracleFill(
-          needW,
-          allSlots,
-          pool.armorDecorations(),
-          pool.weaponDecorations(),
-          nonSet
-        );
+  private List<WeaponRoll> oracleRolls(SolverPool pool, Weapon weapon) {
+    GogmaziosWeapons gogmazios = pool.gogmazios();
 
-        if (cost == INF) {
+    if (weapon == null || !weapon.gogmazios() || !gogmazios.enabled()) {
+      return List.of(WeaponRoll.NONE);
+    }
+
+    List<WeaponRoll> rolls = new ArrayList<>();
+
+    for (int setId : oracleRollChoices(gogmazios.setBonusSkillIds())) {
+      for (int groupId : oracleRollChoices(gogmazios.groupBonusSkillIds())) {
+        if (groupId != 0 && groupId == setId) {
           continue;
         }
 
-        long weaponSlotValue = weapon == null ? 0 : slotScore(weapon.slots());
-        int omitted = omittedArmor + (amulet == null ? 1 : 0) + (weapon == null ? 1 : 0);
-        long score = armorSlotValue + weaponSlotValue - cost + bonus * omitted;
-        scores.add(score);
+        rolls.add(
+          WeaponRoll.of(
+            setId,
+            gogmazios.skillRanks().getOrDefault(setId, Map.of()),
+            groupId,
+            gogmazios.skillRanks().getOrDefault(groupId, Map.of())
+          )
+        );
       }
     }
+
+    return rolls;
+  }
+
+  private List<Integer> oracleRollChoices(Set<Integer> pool) {
+    List<Integer> choices = new ArrayList<>();
+
+    choices.add(0);
+    choices.addAll(pool);
+
+    return choices;
+  }
+
+  private boolean oracleSetBonusesMet(
+    List<ArmorPiece> chosen,
+    List<Integer> setSkills,
+    SkillThresholds thr,
+    WeaponRoll roll
+  ) {
+    for (Integer setSkill : setSkills) {
+      int count = 0;
+
+      for (ArmorPiece p : chosen) {
+        if (p != null && (p.setBonusId() == setSkill || p.groupBonusId() == setSkill)) {
+          count++;
+        }
+      }
+
+      if (roll.contributesTo(setSkill)) {
+        count++;
+      }
+
+      if (activationLevel(thr.setSkillRanksOf(setSkill), count) < thr.required(setSkill)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private int[] needAfter(
@@ -520,15 +733,22 @@ class CatalogSolverTest {
     boolean soak =
       Boolean.getBoolean("catalog.soak") || "true".equalsIgnoreCase(System.getenv("CATALOG_SOAK"));
 
-    List<String> configs = new ArrayList<>(List.of("configs/gogma_meta.json"));
+    List<String> configs = new ArrayList<>(
+      List.of("configs/gogma_meta.json", "configs/gogma_meta.json")
+    );
+    List<Boolean> rollModes = new ArrayList<>(List.of(FALSE, TRUE));
 
     if (soak) {
       configs.add("configs/sere-gore_adrenaline.json");
       configs.add("configs/zoh-gore_evasion.json");
+      rollModes.add(FALSE);
+      rollModes.add(FALSE);
     }
 
-    for (String path : configs) {
-      GearPoolConfig config = GearPoolConfig.load(path);
+    for (int c = 0; c < configs.size(); c++) {
+      String path = configs.get(c);
+      boolean rolls = rollModes.get(c);
+      GearPoolConfig config = GearPoolConfig.load(path).withGogmaziosSkills(rolls);
       long bonus = config.equipmentSlotBonus() != null ? config.equipmentSlotBonus() : 0L;
 
       // Default run uses the restricted crop for a fast cap; the soak run exercises the full
@@ -541,7 +761,13 @@ class CatalogSolverTest {
       List<Build> results = new CatalogSolver(k, bonus).solve(used);
       long elapsed = System.currentTimeMillis() - t0;
 
-      System.out.printf("[%s] catalog %d builds (%dms)%n", path, results.size(), elapsed);
+      System.out.printf(
+        "[%s rolls=%s] catalog %d builds (%dms)%n",
+        path,
+        rolls,
+        results.size(),
+        elapsed
+      );
 
       assertThat(results)
         .as("%s: the exact solver must find builds on the real config", path)
@@ -586,8 +812,22 @@ class CatalogSolverTest {
       .toList();
     List<Weapon> weapons = retainRelevantWeapons(new ArrayList<>(in.weapons()), req.keySet())
       .stream()
+      .filter(w -> !w.gogmazios())
       .limit(capWep)
       .toList();
+
+    // Keep a couple of Gogmazios weapons so the roll path survives the crop the fast run uses.
+    weapons = new ArrayList<>(weapons);
+
+    for (Weapon w : in.weapons()) {
+      if (w.gogmazios()) {
+        weapons.add(w);
+
+        if (weapons.size() >= capWep + 2) {
+          break;
+        }
+      }
+    }
 
     return new SolverPool(
       retained,
@@ -596,7 +836,8 @@ class CatalogSolverTest {
       amulets,
       weapons,
       in.skillMap(),
-      in.thresholds()
+      in.thresholds(),
+      in.gogmazios()
     );
   }
 

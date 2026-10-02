@@ -9,6 +9,7 @@ import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.SlotAssignment;
+import mhwilds.optimizer.model.WeaponRoll;
 
 public final class BuildDetailFormatter {
 
@@ -82,6 +83,17 @@ public final class BuildDetailFormatter {
       sb.append(" none\n");
     }
 
+    if (build.weapon() != null && build.weapon().gogmazios() && build.weaponRoll().enabled()) {
+      WeaponRoll roll = build.weaponRoll();
+      sb.append(
+        String.format(
+          "  Rolls: set=%s group=%s%n",
+          roll.setBonusEmpty() ? "unused" : skillName(skillMap, roll.setBonusSkillId()),
+          roll.groupEmpty() ? "unused" : skillName(skillMap, roll.groupSkillId())
+        )
+      );
+    }
+
     sb.append("Skills:\n");
 
     var skills = build
@@ -129,6 +141,12 @@ public final class BuildDetailFormatter {
       }
     }
     return sb.toString();
+  }
+
+  private static String skillName(Map<Integer, Skill> skillMap, int skillId) {
+    Skill skill = skillMap.get(skillId);
+
+    return skill != null ? skill.name() : String.valueOf(skillId);
   }
 
   private static void appendSlotDetails(

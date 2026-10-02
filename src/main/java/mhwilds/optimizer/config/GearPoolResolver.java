@@ -3,6 +3,7 @@ package mhwilds.optimizer.config;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -16,6 +17,7 @@ import mhwilds.optimizer.model.Decoration;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.SlotTarget;
 import mhwilds.optimizer.model.Weapon;
+import mhwilds.optimizer.solver.GogmaziosWeapons;
 import mhwilds.optimizer.solver.SkillThresholds;
 import mhwilds.optimizer.solver.SolverPool;
 
@@ -57,7 +59,7 @@ public class GearPoolResolver {
     );
 
     List<Weapon> weapons = dropIgnoredSkillOnly(
-      filterWeapons(config, weaponKind),
+      attackFocusOnly(filterWeapons(config, weaponKind)),
       ignoredSkillIds,
       Weapon::skills
     );
@@ -116,10 +118,69 @@ public class GearPoolResolver {
       armorDecorations,
       weaponDecorations,
       amuletRanks,
-      weapons,
+      gogmaziosOnly(weapons, config),
       data.skills(),
-      thresholds
+      thresholds,
+      resolveGogmazios(config)
     );
+  }
+
+  private List<Weapon> gogmaziosOnly(List<Weapon> weapons, GearPoolConfig config) {
+    if (!Boolean.TRUE.equals(config.gogmaziosSkills())) {
+      return weapons;
+    }
+
+    List<Weapon> kept = weapons.stream().filter(Weapon::gogmazios).toList();
+
+    if (kept.isEmpty()) {
+      System.err.println(
+        "Warning: gogmazios_skills is enabled but no Gogmazios " +
+          config.weaponType() +
+          " exists in the game data; no builds can be found"
+      );
+    }
+
+    return kept;
+  }
+
+  private List<Weapon> attackFocusOnly(List<Weapon> weapons) {
+    Map<String, Weapon> best = new LinkedHashMap<>();
+
+    for (Weapon weapon : weapons) {
+      if (!weapon.gogmazios()) {
+        best.put(weapon.gameId() + ":" + weapon.kind(), weapon);
+        continue;
+      }
+
+      String key = weapon.kind() + ":" + weapon.name();
+      Weapon current = best.get(key);
+
+      if (current == null || !current.gogmazios() || weapon.attackRaw() > current.attackRaw()) {
+        best.put(key, weapon);
+      }
+    }
+
+    return new ArrayList<>(best.values());
+  }
+
+  private GogmaziosWeapons resolveGogmazios(GearPoolConfig config) {
+    if (!Boolean.TRUE.equals(config.gogmaziosSkills())) {
+      return GogmaziosWeapons.DISABLED;
+    }
+
+    Set<Integer> setBonusSkillIds = new HashSet<>();
+    Set<Integer> groupBonusSkillIds = new HashSet<>();
+
+    for (ArmorPiece piece : data.armorPieces()) {
+      if (piece.setBonusId() != 0) {
+        setBonusSkillIds.add(piece.setBonusId());
+      }
+      if (piece.groupBonusId() != 0) {
+        groupBonusSkillIds.add(piece.groupBonusId());
+      }
+    }
+
+    return GogmaziosWeapons.enabled(setBonusSkillIds, groupBonusSkillIds, data.setSkillRanks());
   }
 
   private String resolveWeaponType(GearPoolConfig config) {
