@@ -17,13 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import mhwilds.optimizer.model.AmuletRank;
-import mhwilds.optimizer.model.ArmorPiece;
-import mhwilds.optimizer.model.ArmorSlot;
-import mhwilds.optimizer.model.Decoration;
-import mhwilds.optimizer.model.Skill;
-import mhwilds.optimizer.model.SlotTarget;
-import mhwilds.optimizer.model.Weapon;
+import mhwilds.optimizer.model.*;
 import mhwilds.optimizer.transcendence.ArmorTranscendence;
 import mhwilds.optimizer.transcendence.ArmorTranscendenceTable;
 
@@ -136,12 +130,13 @@ public class GameDataLoader {
       int gameId = node.get("game_id").asInt();
       String name = enName(node);
       int maxRank = node.get("ranks").size();
+      SkillKind kind = SkillKind.fromString(node.path("kind").asText(null));
 
       if (name == null || name.isBlank()) {
         throw new IllegalStateException("Skill " + gameId + " has no English name");
       }
 
-      skills.put(gameId, new Skill(gameId, name, maxRank));
+      skills.put(gameId, new Skill(gameId, name, maxRank, kind));
     }
 
     return Map.copyOf(skills);
@@ -399,7 +394,9 @@ public class GameDataLoader {
             rank.get("level").asInt(),
             enName(rank),
             parseSkills(rank.get("skills")),
-            rank.get("rarity").asInt()
+            rank.get("rarity").asInt(),
+            intArray(rank.get("slots")),
+            intArray(rank.get("weapon_slots"))
           )
         );
       }

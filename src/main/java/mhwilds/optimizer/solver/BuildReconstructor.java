@@ -27,10 +27,17 @@ final class BuildReconstructor {
     boolean[] weaponOccupied = weapon == null ? null : new boolean[weapon.weapon().slotCount()];
     List<SlotAssignment> weaponAssign = new ArrayList<>();
 
-    for (Step step : steps) {
-      if (step.kind() == DecoFill.ARMOR) {
-        boolean placed = false;
+    int[] amuletArmorSlots = amulet == null ? new int[0] : amulet.rank().armorSlots();
+    int[] amuletWeaponSlots = amulet == null ? new int[0] : amulet.rank().weaponSlots();
+    boolean[] amuletArmorOccupied = new boolean[amuletArmorSlots.length];
+    boolean[] amuletWeaponOccupied = new boolean[amuletWeaponSlots.length];
+    List<SlotAssignment> amuletArmorAssign = new ArrayList<>();
+    List<SlotAssignment> amuletWeaponAssign = new ArrayList<>();
 
+    for (Step step : steps) {
+      boolean placed = false;
+
+      if (step.kind() == DecoFill.ARMOR) {
         for (int i = 0; i < worn.length && !placed; i++) {
           ArmorPiece piece = worn[i];
 
@@ -49,17 +56,36 @@ final class BuildReconstructor {
         }
 
         if (!placed) {
+          for (int si = 0; si < amuletArmorSlots.length && !placed; si++) {
+            if (amuletArmorSlots[si] == step.size() && !amuletArmorOccupied[si]) {
+              amuletArmorOccupied[si] = true;
+              amuletArmorAssign.add(new SlotAssignment(step.deco(), null, si));
+              placed = true;
+            }
+          }
+        }
+
+        if (!placed) {
           throw new IllegalStateException("no armor slot of size " + step.size());
         }
       } else {
-        boolean placed = false;
+        if (weaponOccupied != null) {
+          for (int si = 0; si < weaponOccupied.length && !placed; si++) {
+            if (weapon.weapon().slots()[si] == step.size() && !weaponOccupied[si]) {
+              weaponOccupied[si] = true;
+              weaponAssign.add(new SlotAssignment(step.deco(), null, si));
+              placed = true;
+            }
+          }
+        }
 
-        for (int si = 0; si < weaponOccupied.length; si++) {
-          if (weapon.weapon().slots()[si] == step.size() && !weaponOccupied[si]) {
-            weaponOccupied[si] = true;
-            weaponAssign.add(new SlotAssignment(step.deco(), null, si));
-            placed = true;
-            break;
+        if (!placed) {
+          for (int si = 0; si < amuletWeaponSlots.length && !placed; si++) {
+            if (amuletWeaponSlots[si] == step.size() && !amuletWeaponOccupied[si]) {
+              amuletWeaponOccupied[si] = true;
+              amuletWeaponAssign.add(new SlotAssignment(step.deco(), null, si));
+              placed = true;
+            }
           }
         }
 
@@ -75,7 +101,9 @@ final class BuildReconstructor {
       weaponAssign,
       amulet == null ? null : amulet.rank(),
       weapon == null ? null : weapon.weapon(),
-      weapon == null ? WeaponRoll.NONE : weapon.roll()
+      weapon == null ? WeaponRoll.NONE : weapon.roll(),
+      amuletArmorAssign,
+      amuletWeaponAssign
     );
   }
 }

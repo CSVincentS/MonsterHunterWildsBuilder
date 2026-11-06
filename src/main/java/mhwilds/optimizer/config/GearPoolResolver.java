@@ -11,12 +11,7 @@ import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import mhwilds.optimizer.loader.GameData;
-import mhwilds.optimizer.model.AmuletRank;
-import mhwilds.optimizer.model.ArmorPiece;
-import mhwilds.optimizer.model.Decoration;
-import mhwilds.optimizer.model.Skill;
-import mhwilds.optimizer.model.SlotTarget;
-import mhwilds.optimizer.model.Weapon;
+import mhwilds.optimizer.model.*;
 import mhwilds.optimizer.solver.GogmaziosWeapons;
 import mhwilds.optimizer.solver.SkillThresholds;
 import mhwilds.optimizer.solver.SolverPool;
@@ -33,6 +28,10 @@ public class GearPoolResolver {
   }
 
   public SolverPool resolve(GearPoolConfig config) {
+    return resolve(config, List.of());
+  }
+
+  public SolverPool resolve(GearPoolConfig config, List<AmuletRank> extraAmulets) {
     String weaponKind = resolveWeaponType(config);
     Set<Integer> ignoredSkillIds = resolveIgnoredSkills(config, weaponKind);
 
@@ -52,8 +51,14 @@ public class GearPoolResolver {
       Decoration::skills
     );
 
+    List<AmuletRank> combinedAmulets = new ArrayList<>(filterAmulets(config));
+
+    if (extraAmulets != null) {
+      combinedAmulets.addAll(extraAmulets);
+    }
+
     List<AmuletRank> amuletRanks = dropIgnoredSkillOnly(
-      filterAmulets(config),
+      combinedAmulets,
       ignoredSkillIds,
       AmuletRank::skills
     );
@@ -172,15 +177,25 @@ public class GearPoolResolver {
     Set<Integer> groupBonusSkillIds = new HashSet<>();
 
     for (ArmorPiece piece : data.armorPieces()) {
-      if (piece.setBonusId() != 0) {
-        setBonusSkillIds.add(piece.setBonusId());
-      }
-      if (piece.groupBonusId() != 0) {
-        groupBonusSkillIds.add(piece.groupBonusId());
-      }
+      addBonusSkill(setBonusSkillIds, piece.setBonusId(), SkillKind.SET);
+      addBonusSkill(groupBonusSkillIds, piece.groupBonusId(), SkillKind.GROUP);
     }
 
     return GogmaziosWeapons.enabled(setBonusSkillIds, groupBonusSkillIds, data.setSkillRanks());
+  }
+
+  private void addBonusSkill(Set<Integer> target, int skillId, SkillKind expectedKind) {
+    if (skillId == 0) {
+      return;
+    }
+
+    Skill skill = data.skills().get(skillId);
+
+    // Secondary set bonuses on pieces such as Gogmazios are stored in groupBonusId by the
+    // loader, so the roll pools must be filtered by the skill's declared kind
+    if (skill != null && skill.kind() == expectedKind) {
+      target.add(skillId);
+    }
   }
 
   private String resolveWeaponType(GearPoolConfig config) {

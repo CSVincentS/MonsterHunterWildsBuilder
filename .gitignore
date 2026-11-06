@@ -11,6 +11,9 @@ node_modules/
 .classpath
 .settings/
 
+# User-local data (auto-created by the GUI, never commit personal talismans)
+appraised_talismans.json
+
 # OS files
 .DS_Store
 Thumbs.db

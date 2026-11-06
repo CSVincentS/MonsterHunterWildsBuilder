@@ -1,9 +1,6 @@
 package mhwilds.optimizer.solver;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import mhwilds.optimizer.model.Decoration;
 import mhwilds.optimizer.model.SlotScore;
 
@@ -173,8 +170,8 @@ public final class DecoFill {
   }
 
   private FillResult fillImpl(long needPack, long counts, boolean wantSteps) {
-    java.util.PriorityQueue<long[]> queue = new java.util.PriorityQueue<>((x, y) ->
-      Long.compare(x[0], y[0])
+    java.util.PriorityQueue<long[]> queue = new java.util.PriorityQueue<>(
+      Comparator.comparingLong(x -> x[0])
     );
     Map<Long, Long> dist = new HashMap<>();
     Map<Long, Long> prevState = wantSteps ? new HashMap<>() : null;

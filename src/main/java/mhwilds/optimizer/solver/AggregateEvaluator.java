@@ -69,6 +69,11 @@ final class AggregateEvaluator {
 
     for (AmuletOpt amulet : amulets) {
       long afterAmulet = amulet == null ? residual : SkillLevels.sub(residual, amulet.pack());
+      int[] armorCounts = combinedCounts(
+        aggregate.slotCounts(),
+        amulet == null ? null : amulet.armorCounts()
+      );
+      long amuletSlotValue = amulet == null ? 0 : amulet.slotValue();
 
       for (WeaponOpt weapon : weapons) {
         if (gogmaziosSkills && !setBonusReached(aggregate, weapon)) {
@@ -77,20 +82,24 @@ final class AggregateEvaluator {
 
         long afterWeapon =
           weapon == null ? afterAmulet : SkillLevels.sub(afterAmulet, weapon.innatePack());
-        int[] weaponCounts = weapon == null ? ZERO_COUNTS : weapon.counts();
+        int[] weaponCounts = combinedCounts(
+          weapon == null ? ZERO_COUNTS : weapon.counts(),
+          amulet == null ? null : amulet.weaponCounts()
+        );
 
-        if (!bounds.fillFeasible(afterWeapon, aggregate.slotCounts(), weaponCounts)) {
+        if (!bounds.fillFeasible(afterWeapon, armorCounts, weaponCounts)) {
           continue;
         }
 
-        long cost = fill.fillCost(afterWeapon, aggregate.slotCounts(), weaponCounts);
+        long cost = fill.fillCost(afterWeapon, armorCounts, weaponCounts);
 
         if (cost == DecoFill.INF) {
           continue;
         }
 
         long score =
-          baseScore -
+          baseScore +
+          amuletSlotValue -
           cost +
           (weapon == null ? 0 : weapon.slotValue() + weapon.rollBonus()) +
           (amulet == null ? bonus : 0) +
@@ -100,7 +109,7 @@ final class AggregateEvaluator {
           continue;
         }
 
-        FillResult result = fill.fillWithSteps(afterWeapon, aggregate.slotCounts(), weaponCounts);
+        FillResult result = fill.fillWithSteps(afterWeapon, armorCounts, weaponCounts);
 
         if (result.cost() == DecoFill.INF) {
           continue;
@@ -109,6 +118,20 @@ final class AggregateEvaluator {
         topK.offer(BuildReconstructor.from(aggregate, result.steps(), amulet, weapon), score);
       }
     }
+  }
+
+  private static int[] combinedCounts(int[] base, int[] extra) {
+    if (extra == null) {
+      return base;
+    }
+
+    int[] out = base.clone();
+
+    for (int s = 0; s < out.length && s < extra.length; s++) {
+      out[s] = Math.min(15, out[s] + extra[s]);
+    }
+
+    return out;
   }
 
   private boolean setBonusReached(Aggregate aggregate, WeaponOpt weapon) {

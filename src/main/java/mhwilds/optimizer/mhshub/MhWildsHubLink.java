@@ -11,6 +11,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import mhwilds.optimizer.model.AppraisedTalisman;
 import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.model.SlotAssignment;
@@ -86,7 +87,7 @@ public final class MhWildsHubLink {
         MAPPER.convertValue(root.get("amulets"), AMULET_REF)
       );
 
-      sinkMappings(m).size();
+      sinkMappings(m);
 
       return m;
     } catch (IOException e) {
@@ -94,30 +95,12 @@ public final class MhWildsHubLink {
     }
   }
 
-  private static Map<String, String> sinkMappings(Mappings m) {
-    for (var byId : m.weapons().values()) {
-      for (String gameId : byId.keySet()) {
-        Integer.parseInt(gameId);
-      }
-    }
-
+  private static void sinkMappings(Mappings m) {
     for (var bySlot : m.armor().values()) {
       for (int id : bySlot.values()) {
         checkRange(id, "armor");
       }
     }
-
-    for (String gameId : m.decos().keySet()) {
-      Integer.parseInt(gameId);
-    }
-
-    for (var byRank : m.amulets().values()) {
-      for (String rank : byRank.keySet()) {
-        Integer.parseInt(rank);
-      }
-    }
-
-    return m.decos();
   }
 
   private static void checkRange(int id, String kind) {
@@ -216,6 +199,14 @@ public final class MhWildsHubLink {
   private static String amuletId(Build build, Mappings m) {
     String family = String.valueOf(build.amuletRank().familyGameId());
     String rank = String.valueOf(build.amuletRank().rankLevel());
+
+    if (AppraisedTalisman.isAppraisedFamilyId(build.amuletRank().familyGameId())) {
+      throw new IllegalStateException(
+        "appraised talisman '" +
+          build.amuletRank().name() +
+          "' has no MH Wilds Hub entry and cannot be shared"
+      );
+    }
 
     return require(m.amulets(), family, rank, "amulet");
   }

@@ -10,12 +10,50 @@ public record Build(
   List<SlotAssignment> weaponDecorations,
   AmuletRank amuletRank,
   Weapon weapon,
-  WeaponRoll weaponRoll
+  WeaponRoll weaponRoll,
+  List<SlotAssignment> amuletArmorDecorations,
+  List<SlotAssignment> amuletWeaponDecorations
 ) {
   public Build {
     if (weaponRoll == null) {
       weaponRoll = WeaponRoll.NONE;
     }
+
+    if (armorDecorations == null) {
+      armorDecorations = List.of();
+    }
+
+    if (weaponDecorations == null) {
+      weaponDecorations = List.of();
+    }
+
+    if (amuletArmorDecorations == null) {
+      amuletArmorDecorations = List.of();
+    }
+
+    if (amuletWeaponDecorations == null) {
+      amuletWeaponDecorations = List.of();
+    }
+  }
+
+  public Build(
+    ArmorPiece[] armorPieces,
+    List<SlotAssignment> armorDecorations,
+    List<SlotAssignment> weaponDecorations,
+    AmuletRank amuletRank,
+    Weapon weapon,
+    WeaponRoll weaponRoll
+  ) {
+    this(
+      armorPieces,
+      armorDecorations,
+      weaponDecorations,
+      amuletRank,
+      weapon,
+      weaponRoll,
+      List.of(),
+      List.of()
+    );
   }
 
   public Build(
@@ -52,6 +90,18 @@ public record Build(
     }
 
     for (SlotAssignment sa : weaponDecorations) {
+      for (var entry : sa.decoration().skills().entrySet()) {
+        total.merge(entry.getKey(), entry.getValue(), Integer::sum);
+      }
+    }
+
+    for (SlotAssignment sa : amuletArmorDecorations) {
+      for (var entry : sa.decoration().skills().entrySet()) {
+        total.merge(entry.getKey(), entry.getValue(), Integer::sum);
+      }
+    }
+
+    for (SlotAssignment sa : amuletWeaponDecorations) {
       for (var entry : sa.decoration().skills().entrySet()) {
         total.merge(entry.getKey(), entry.getValue(), Integer::sum);
       }
@@ -155,11 +205,21 @@ public record Build(
       total += weapon.slotCount();
     }
 
+    if (amuletRank != null) {
+      total += amuletRank.armorSlotCount() + amuletRank.weaponSlotCount();
+    }
+
     return total;
   }
 
   public int freeSlotCount() {
-    return totalSlotCount() - armorDecorations.size() - weaponDecorations.size();
+    return (
+      totalSlotCount() -
+      armorDecorations.size() -
+      weaponDecorations.size() -
+      amuletArmorDecorations.size() -
+      amuletWeaponDecorations.size()
+    );
   }
 
   public long freeSlotScore() {
@@ -197,6 +257,32 @@ public record Build(
       for (int i = 0; i < weapon.slots().length; i++) {
         if (!weaponOccupied[i]) {
           score += SlotScore.valueOf(weapon.slots()[i]);
+        }
+      }
+    }
+
+    if (amuletRank != null) {
+      boolean[] amuletArmorOccupied = new boolean[amuletRank.armorSlotCount()];
+
+      for (SlotAssignment sa : amuletArmorDecorations) {
+        amuletArmorOccupied[sa.slotIndexWithinPiece()] = true;
+      }
+
+      for (int i = 0; i < amuletRank.armorSlots().length; i++) {
+        if (!amuletArmorOccupied[i]) {
+          score += SlotScore.valueOf(amuletRank.armorSlots()[i]);
+        }
+      }
+
+      boolean[] amuletWeaponOccupied = new boolean[amuletRank.weaponSlotCount()];
+
+      for (SlotAssignment sa : amuletWeaponDecorations) {
+        amuletWeaponOccupied[sa.slotIndexWithinPiece()] = true;
+      }
+
+      for (int i = 0; i < amuletRank.weaponSlots().length; i++) {
+        if (!amuletWeaponOccupied[i]) {
+          score += SlotScore.valueOf(amuletRank.weaponSlots()[i]);
         }
       }
     }

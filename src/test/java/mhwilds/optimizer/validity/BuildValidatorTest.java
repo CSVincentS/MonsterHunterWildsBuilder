@@ -16,7 +16,7 @@ class BuildValidatorTest {
   @BeforeEach
   void setup() {
     skillMap = Map.of(100, new Skill(100, "TestSkillA", 5), 200, new Skill(200, "TestSkillB", 3));
-    validator = new BuildValidator(skillMap);
+    validator = new BuildValidator();
   }
 
   private ArmorPiece piece(ArmorSlot kind, int[] slots, Map<Integer, Integer> skills) {

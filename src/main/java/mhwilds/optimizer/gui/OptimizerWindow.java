@@ -39,6 +39,7 @@ import javax.swing.text.DefaultCaret;
 import mhwilds.optimizer.config.GearPoolConfig;
 import mhwilds.optimizer.loader.GameData;
 import mhwilds.optimizer.mhshub.MhWildsHubLink;
+import mhwilds.optimizer.model.AmuletRank;
 import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.Weapon;
@@ -49,6 +50,7 @@ public class OptimizerWindow extends JFrame {
   private final GameData data;
   private final SolverService service;
   private GearPoolConfig baseConfig;
+  private final AppraisedTalismanStore talismanStore;
 
   private final SkillRequirementsTableModel skillModel = new SkillRequirementsTableModel();
   private final ResultsTableModel resultsModel = new ResultsTableModel(List.of());
@@ -90,6 +92,8 @@ public class OptimizerWindow extends JFrame {
   private final JCheckBox gogmaziosBox = new JCheckBox(
     "Gogmazios weapons only (with bonus skill rolls)"
   );
+  private final JCheckBox appraisedBox = new JCheckBox("Use appraised talismans");
+  private final JButton manageTalismansButton = new JButton("Manage appraised talismans…");
 
   private final JButton solveButton = new JButton("Solve");
   private final JTextArea detailArea = new JTextArea();
@@ -105,6 +109,7 @@ public class OptimizerWindow extends JFrame {
     this.data = data;
     this.service = new SolverService(data);
     this.baseConfig = config;
+    this.talismanStore = AppraisedTalismanStore.loadDefault(data);
     this.weaponCombo = new JComboBox<>(
       data
         .weapons()
@@ -128,6 +133,17 @@ public class OptimizerWindow extends JFrame {
     equipmentBonusSpinner.setEnabled(RankingFactory.FREE_EQUIPMENT_SLOTS.equals(config.ranking()));
     transcendedBox.setSelected(config.armor().transcended());
     gogmaziosBox.setSelected(Boolean.TRUE.equals(config.gogmaziosSkills()));
+    appraisedBox.setSelected(talismanStore.isEnabled());
+    appraisedBox.addActionListener(e -> {
+      talismanStore.setEnabled(appraisedBox.isSelected());
+
+      try {
+        talismanStore.saveDefault();
+      } catch (RuntimeException ex) {
+        status("Could not save " + AppraisedTalismanStore.DEFAULT_FILE_NAME, true);
+      }
+    });
+    manageTalismansButton.addActionListener(e -> manageTalismans());
 
     seedSkillsFrom(config);
 
@@ -297,6 +313,8 @@ public class OptimizerWindow extends JFrame {
     addOptionRow(optionsPanel, 4, "Equipment slot bonus:", equipmentBonusSpinner);
     addFullWidthOptionRow(optionsPanel, 5, transcendedBox);
     addFullWidthOptionRow(optionsPanel, 6, gogmaziosBox);
+    addFullWidthOptionRow(optionsPanel, 7, appraisedBox);
+    addFullWidthOptionRow(optionsPanel, 8, manageTalismansButton);
 
     rankingCombo.addActionListener(e ->
       equipmentBonusSpinner.setEnabled(
@@ -418,9 +436,13 @@ public class OptimizerWindow extends JFrame {
     resultsModel.setScoreFunc(b -> BuildScore.of(b, lastRanking, lastBonus).total());
     detailArea.setText("");
 
+    List<AmuletRank> extraAmulets = appraisedBox.isSelected()
+      ? talismanStore.toAmuletRanks()
+      : List.of();
+
     status("Solving…", false);
 
-    new SolveWorker(service, config, computeTopN, showTopN).execute();
+    new SolveWorker(service, config, computeTopN, showTopN, extraAmulets).execute();
   }
 
   private RarityBounds rarityBounds() {
@@ -509,13 +531,35 @@ public class OptimizerWindow extends JFrame {
     }
   }
 
+  private void manageTalismans() {
+    boolean saved = AppraisedTalismanListDialog.showDialog(this, data, talismanStore);
+
+    if (saved) {
+      status(
+        "Saved " +
+          talismanStore.talismans().size() +
+          " appraised talisman(s) to " +
+          AppraisedTalismanStore.DEFAULT_FILE_NAME,
+        false
+      );
+    }
+  }
+
   private void status(String text, boolean error) {
     statusLabel.setText(text);
     statusLabel.setForeground(error ? Color.RED : new Color(0, 120, 0));
   }
 
   private void openInHub(Build build) {
-    String url = MhWildsHubLink.shareUrl(build);
+    String url;
+
+    try {
+      url = MhWildsHubLink.shareUrl(build);
+    } catch (IllegalStateException e) {
+      status(e.getMessage(), true);
+
+      return;
+    }
 
     try {
       if (openWithDesktop(url) || openWithProcess(url)) {
@@ -578,17 +622,25 @@ public class OptimizerWindow extends JFrame {
     private final GearPoolConfig config;
     private final int computeTopN;
     private final int showTopN;
+    private final List<AmuletRank> extraAmulets;
 
-    SolveWorker(SolverService solverService, GearPoolConfig config, int computeTopN, int showTopN) {
+    SolveWorker(
+      SolverService solverService,
+      GearPoolConfig config,
+      int computeTopN,
+      int showTopN,
+      List<AmuletRank> extraAmulets
+    ) {
       this.solverService = solverService;
       this.config = config;
       this.computeTopN = computeTopN;
       this.showTopN = showTopN;
+      this.extraAmulets = extraAmulets;
     }
 
     @Override
     protected SolverService.SolveResult doInBackground() {
-      return solverService.solve(config, computeTopN, showTopN);
+      return solverService.solve(config, computeTopN, showTopN, extraAmulets);
     }
 
     @Override

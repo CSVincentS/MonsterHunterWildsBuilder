@@ -14,13 +14,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import mhwilds.optimizer.loader.GameData;
 import mhwilds.optimizer.loader.GameDataLoader;
-import mhwilds.optimizer.model.AmuletRank;
-import mhwilds.optimizer.model.ArmorPiece;
-import mhwilds.optimizer.model.ArmorSlot;
-import mhwilds.optimizer.model.Decoration;
-import mhwilds.optimizer.model.SlotScore;
-import mhwilds.optimizer.model.SlotTarget;
-import mhwilds.optimizer.model.Weapon;
+import mhwilds.optimizer.model.*;
 import mhwilds.optimizer.solver.CatalogSolver;
 import mhwilds.optimizer.solver.SolverPool;
 import org.junit.jupiter.api.Test;
@@ -454,6 +448,16 @@ class GearPoolResolverTest {
     // skill; neither leaks into the other slot's pool for this bow configuration.
     assertThat(setIds).doesNotContain(4554);
     assertThat(groupIds).doesNotContain(31540);
+
+    // Gogmazios armor carries secondary set bonuses (e.g. Zoh Shia's Pulse) that the loader
+    // stores in groupBonusId. They must not become group roll choices.
+    assertThat(setIds).allSatisfy(id ->
+      assertThat(data.skills().get(id).kind()).isEqualTo(SkillKind.SET)
+    );
+
+    assertThat(groupIds)
+      .allSatisfy(id -> assertThat(data.skills().get(id).kind()).isEqualTo(SkillKind.GROUP))
+      .doesNotContain(-555494336);
   }
 
   @Test

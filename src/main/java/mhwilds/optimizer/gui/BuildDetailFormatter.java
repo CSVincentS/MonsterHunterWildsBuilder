@@ -27,6 +27,14 @@ public final class BuildDetailFormatter {
       counts.merge(sa.decoration().name() + "→weapon", 1, Integer::sum);
     }
 
+    for (SlotAssignment sa : build.amuletArmorDecorations()) {
+      counts.merge(sa.decoration().name() + "→amulet", 1, Integer::sum);
+    }
+
+    for (SlotAssignment sa : build.amuletWeaponDecorations()) {
+      counts.merge(sa.decoration().name() + "→amulet weapon", 1, Integer::sum);
+    }
+
     if (counts.isEmpty()) {
       return "(none)";
     }
@@ -71,9 +79,14 @@ public final class BuildDetailFormatter {
       appendSlotDetails(sb, build.armorDecorations(), piece.slots(), slot);
     }
 
-    sb.append("Amulet: ")
-      .append(build.amuletRank() != null ? build.amuletRank().name() : "none")
-      .append('\n');
+    sb.append("Amulet: ").append(build.amuletRank() != null ? build.amuletRank().name() : "none");
+
+    if (build.amuletRank() != null) {
+      appendAmuletSlots(sb, build);
+    } else {
+      sb.append('\n');
+    }
+
     sb.append("Weapon:");
 
     if (build.weapon() != null) {
@@ -147,6 +160,55 @@ public final class BuildDetailFormatter {
     Skill skill = skillMap.get(skillId);
 
     return skill != null ? skill.name() : String.valueOf(skillId);
+  }
+
+  private static void appendAmuletSlots(StringBuilder sb, Build build) {
+    int[] armorSlots = build.amuletRank().armorSlots();
+    int[] weaponSlots = build.amuletRank().weaponSlots();
+
+    if (armorSlots.length == 0 && weaponSlots.length == 0) {
+      sb.append('\n');
+
+      return;
+    }
+
+    sb.append("  ");
+
+    boolean first = true;
+
+    for (int i = 0; i < armorSlots.length; i++) {
+      if (!first) {
+        sb.append("  ");
+      }
+
+      first = false;
+      sb.append(String.format("L%d %s", armorSlots[i], amuletDecoName(build, true, i)));
+    }
+
+    for (int i = 0; i < weaponSlots.length; i++) {
+      if (!first) {
+        sb.append("  ");
+      }
+
+      first = false;
+      sb.append(String.format("W%d %s", weaponSlots[i], amuletDecoName(build, false, i)));
+    }
+
+    sb.append('\n');
+  }
+
+  private static String amuletDecoName(Build build, boolean armor, int slotIndex) {
+    List<SlotAssignment> assignments = armor
+      ? build.amuletArmorDecorations()
+      : build.amuletWeaponDecorations();
+
+    for (SlotAssignment sa : assignments) {
+      if (sa.slotIndexWithinPiece() == slotIndex) {
+        return sa.decoration().name();
+      }
+    }
+
+    return "—";
   }
 
   private static void appendSlotDetails(

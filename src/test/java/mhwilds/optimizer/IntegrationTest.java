@@ -48,7 +48,7 @@ class IntegrationTest {
     List<Build> ranked = results.stream().sorted(ranking).toList();
     assertThat(ranked).hasSizeGreaterThanOrEqualTo(1000);
 
-    BuildValidator validator = new BuildValidator(pool.skillMap());
+    BuildValidator validator = new BuildValidator();
     long invalidCount = ranked
       .stream()
       .map(validator::validate)
@@ -109,7 +109,7 @@ class IntegrationTest {
     assertThat(builds).isNotEmpty();
     assertThat(builds.get(0).weapon().kind()).isEqualTo("great-sword");
 
-    BuildValidator validator = new BuildValidator(data.skills());
+    BuildValidator validator = new BuildValidator();
 
     for (Build b : builds) {
       assertThat(validator.validate(b)).as("build %s must validate", b).isEmpty();

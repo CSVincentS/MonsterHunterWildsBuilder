@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 
 import java.util.List;
 import mhwilds.optimizer.model.ArmorPiece;
+import mhwilds.optimizer.model.SkillKind;
 import mhwilds.optimizer.model.Weapon;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +26,15 @@ class GameDataLoaderTest {
 
     assertThat(data.skills()).containsKey(-315492576);
     assertThat(data.skills().get(-315492576).maxRank()).isEqualTo(3);
+  }
+
+  @Test
+  void preservesSkillKindsFromSkillJson() {
+    GameData data = new GameDataLoader("data").load();
+
+    assertThat(data.skills().get(-555494336).kind()).isEqualTo(SkillKind.SET);
+    assertThat(data.skills().get(4554).kind()).isEqualTo(SkillKind.GROUP);
+    assertThat(data.skills().get(-1689391744).kind()).isEqualTo(SkillKind.ARMOR);
   }
 
   @Test

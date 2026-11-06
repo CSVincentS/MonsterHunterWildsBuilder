@@ -7,6 +7,7 @@ import java.util.Map;
 import mhwilds.optimizer.config.GearPoolConfig;
 import mhwilds.optimizer.config.GearPoolResolver;
 import mhwilds.optimizer.loader.GameData;
+import mhwilds.optimizer.model.AmuletRank;
 import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.ranking.RankingFactory;
@@ -115,9 +116,21 @@ public class SolverService {
   }
 
   public SolveResult solve(GearPoolConfig config, int computeTopN, int showTopN) {
+    return solve(config, computeTopN, showTopN, List.of());
+  }
+
+  public SolveResult solve(
+    GearPoolConfig config,
+    int computeTopN,
+    int showTopN,
+    List<AmuletRank> extraAmulets
+  ) {
     long start = System.nanoTime();
 
-    SolverPool pool = new GearPoolResolver(data).resolve(config);
+    SolverPool pool = new GearPoolResolver(data).resolve(
+      config,
+      extraAmulets == null ? List.of() : extraAmulets
+    );
 
     long bonus =
       config.equipmentSlotBonus() != null ? Math.max(0, config.equipmentSlotBonus()) : 0L;

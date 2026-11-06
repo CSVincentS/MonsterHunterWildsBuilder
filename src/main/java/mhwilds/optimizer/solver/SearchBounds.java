@@ -22,6 +22,11 @@ final class SearchBounds {
 
   private long weaponMaxSlotValue;
   private long weaponMaxRollBonus;
+  private long maxAmuletSlotValue;
+  private final int[] bestAmuletArmorCounts = new int[SLOT_SIZES];
+  private final int[] bestAmuletWeaponCounts = new int[SLOT_SIZES];
+  private int maxAmuletArmorTotal;
+  private int maxAmuletWeaponTotal;
   private final long[] bestAmu;
   private final long[] bestWeaponInnate;
   private final long[] bestArmorDeco;
@@ -61,6 +66,21 @@ final class SearchBounds {
       for (int i = 0; i < n; i++) {
         bestAmu[i] = Math.max(bestAmu[i], SkillLevels.levelAt(a.pack(), i));
       }
+
+      maxAmuletSlotValue = Math.max(maxAmuletSlotValue, a.slotValue());
+
+      int armorTotal = 0;
+      int weaponTotal = 0;
+
+      for (int s = 0; s < SLOT_SIZES; s++) {
+        bestAmuletArmorCounts[s] = Math.max(bestAmuletArmorCounts[s], a.armorCounts()[s]);
+        bestAmuletWeaponCounts[s] = Math.max(bestAmuletWeaponCounts[s], a.weaponCounts()[s]);
+        armorTotal += a.armorCounts()[s];
+        weaponTotal += a.weaponCounts()[s];
+      }
+
+      maxAmuletArmorTotal = Math.max(maxAmuletArmorTotal, armorTotal);
+      maxAmuletWeaponTotal = Math.max(maxAmuletWeaponTotal, weaponTotal);
     }
 
     for (WeaponOpt w : wepOptions) {
@@ -126,6 +146,8 @@ final class SearchBounds {
       bestAmu[skill] +
       bestWeaponInnate[skill] +
       slotCover(armorCount, armorDecoBest, skill) +
+      slotCover(bestAmuletArmorCounts, armorDecoBest, skill) +
+      slotCover(bestAmuletWeaponCounts, weaponDecoBest, skill) +
       SLOT_SIZES * bestWeaponDeco[skill]
     );
   }
@@ -135,8 +157,8 @@ final class SearchBounds {
       innate +
         bestAmu[skill] +
         bestWeaponInnate[skill] +
-        (long) totalSlots * bestArmorDeco[skill] +
-        SLOT_SIZES * bestWeaponDeco[skill] >=
+        (long) (totalSlots + maxAmuletArmorTotal) * bestArmorDeco[skill] +
+        (long) (SLOT_SIZES + maxAmuletWeaponTotal) * bestWeaponDeco[skill] >=
       required[skill]
     );
   }
@@ -147,8 +169,8 @@ final class SearchBounds {
         suffixSkill[pos][skill] +
         bestAmu[skill] +
         bestWeaponInnate[skill] +
-        (long) (totalSlots + suffixSlots[pos]) * bestArmorDeco[skill] +
-        SLOT_SIZES * bestWeaponDeco[skill] >=
+        (long) (totalSlots + suffixSlots[pos] + maxAmuletArmorTotal) * bestArmorDeco[skill] +
+        (long) (SLOT_SIZES + maxAmuletWeaponTotal) * bestWeaponDeco[skill] >=
       required[skill]
     );
   }
@@ -175,7 +197,13 @@ final class SearchBounds {
 
       needPoints += r;
 
-      if (r > slotCover(armorCount, armorDecoBest, i) + slotCover(wepCount, weaponDecoBest, i)) {
+      if (
+        r >
+        slotCover(armorCount, armorDecoBest, i) +
+          slotCover(bestAmuletArmorCounts, armorDecoBest, i) +
+          slotCover(wepCount, weaponDecoBest, i) +
+          slotCover(bestAmuletWeaponCounts, weaponDecoBest, i)
+      ) {
         return false;
       }
     }
@@ -185,13 +213,16 @@ final class SearchBounds {
     for (int s = 0; s < SLOT_SIZES; s++) {
       slotPoints +=
         (long) armorCount[s] * armorDecoBestTotal[s] + (long) wepCount[s] * weaponDecoBestTotal[s];
+      slotPoints +=
+        (long) bestAmuletArmorCounts[s] * armorDecoBestTotal[s] +
+        (long) bestAmuletWeaponCounts[s] * weaponDecoBestTotal[s];
     }
 
     return needPoints <= slotPoints;
   }
 
   long upperBound(long slotValue, int worn, long bonus) {
-    long upper = slotValue;
+    long upper = slotValue + maxAmuletSlotValue;
 
     if (bonus > 0) {
       upper += bonus * (ARMOR_SLOT_COUNT - worn);

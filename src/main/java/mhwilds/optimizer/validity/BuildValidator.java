@@ -7,17 +7,60 @@ import mhwilds.optimizer.model.ArmorPiece;
 import mhwilds.optimizer.model.ArmorSlot;
 import mhwilds.optimizer.model.Build;
 import mhwilds.optimizer.model.Decoration;
-import mhwilds.optimizer.model.Skill;
 import mhwilds.optimizer.model.SlotAssignment;
 import mhwilds.optimizer.model.SlotTarget;
 import mhwilds.optimizer.model.Weapon;
 
 public class BuildValidator {
 
-  private final Map<Integer, Skill> skillMap;
+  public BuildValidator() {}
 
-  public BuildValidator(Map<Integer, Skill> skillMap) {
-    this.skillMap = skillMap;
+  private static void checkAmuletSlot(
+    List<String> errors,
+    int[] slots,
+    SlotAssignment sa,
+    SlotTarget expected,
+    String what
+  ) {
+    int idx = sa.slotIndexWithinPiece();
+
+    if (idx < 0 || idx >= slots.length) {
+      errors.add(
+        "Slot index " + idx + " out of bounds for " + what + " (has " + slots.length + " slots)"
+      );
+
+      return;
+    }
+
+    int slotSize = slots[idx];
+    Decoration dec = sa.decoration();
+
+    if (dec.allowedOn() != expected) {
+      errors.add(
+        "Decoration '" +
+          dec.name() +
+          "' has allowed_on=" +
+          dec.allowedOn() +
+          " but is assigned to " +
+          what +
+          " slot"
+      );
+    }
+
+    if (!dec.fitsInSlot(slotSize)) {
+      errors.add(
+        "Decoration '" +
+          dec.name() +
+          "' level " +
+          dec.level() +
+          " does not fit in " +
+          what +
+          " slot " +
+          idx +
+          " of size " +
+          slotSize
+      );
+    }
   }
 
   public List<String> validate(Build build) {
@@ -38,6 +81,7 @@ public class BuildValidator {
 
     for (SlotAssignment sa : build.armorDecorations()) {
       ArmorPiece piece = pieces[sa.targetPiece().ordinal()];
+
       if (piece == null) {
         errors.add("Decoration assigned to missing armor piece in " + sa.targetPiece());
         continue;
@@ -55,8 +99,10 @@ public class BuildValidator {
             piece.slots().length +
             " slots)"
         );
+
         continue;
       }
+
       int slotSize = piece.slots()[idx];
       Decoration dec = sa.decoration();
 
@@ -100,6 +146,7 @@ public class BuildValidator {
               weapon.slots().length +
               " slots)"
           );
+
           continue;
         }
 
@@ -128,6 +175,32 @@ public class BuildValidator {
               slotSize
           );
         }
+      }
+    }
+
+    if (build.amuletRank() == null) {
+      if (!build.amuletArmorDecorations().isEmpty() || !build.amuletWeaponDecorations().isEmpty()) {
+        errors.add("Decorations assigned to a missing amulet");
+      }
+    } else {
+      for (SlotAssignment sa : build.amuletArmorDecorations()) {
+        checkAmuletSlot(
+          errors,
+          build.amuletRank().armorSlots(),
+          sa,
+          SlotTarget.ARMOR,
+          "amulet armor"
+        );
+      }
+
+      for (SlotAssignment sa : build.amuletWeaponDecorations()) {
+        checkAmuletSlot(
+          errors,
+          build.amuletRank().weaponSlots(),
+          sa,
+          SlotTarget.WEAPON,
+          "amulet weapon"
+        );
       }
     }
 

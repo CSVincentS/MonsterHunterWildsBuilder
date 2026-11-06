@@ -12,7 +12,13 @@ import mhwilds.optimizer.model.WeaponRoll;
 
 final class GearOptions {
 
-  record AmuletOpt(AmuletRank rank, long pack) {}
+  record AmuletOpt(
+    AmuletRank rank,
+    long pack,
+    int[] armorCounts,
+    int[] weaponCounts,
+    long slotValue
+  ) {}
 
   record WeaponOpt(Weapon weapon, long innatePack, long slotValue, int[] counts, WeaponRoll roll) {
     boolean contributesTo(int skillId) {
@@ -36,10 +42,30 @@ final class GearOptions {
     List<AmuletOpt> opts = new ArrayList<>();
 
     for (AmuletRank a : amulets) {
-      opts.add(new AmuletOpt(a, SkillLevels.packOf(a.skills(), skillPos)));
+      opts.add(
+        new AmuletOpt(
+          a,
+          SkillLevels.packOf(a.skills(), skillPos),
+          slotCounts(a.armorSlots()),
+          slotCounts(a.weaponSlots()),
+          a.slotValue()
+        )
+      );
     }
 
     return pruneAmulets(opts);
+  }
+
+  private static int[] slotCounts(int[] slots) {
+    int[] counts = new int[3];
+
+    for (int s : slots) {
+      if (s >= 1 && s <= 3) {
+        counts[s - 1]++;
+      }
+    }
+
+    return counts;
   }
 
   private List<AmuletOpt> pruneAmulets(List<AmuletOpt> opts) {
@@ -74,6 +100,16 @@ final class GearOptions {
       }
 
       if (bv > av) {
+        strict = true;
+      }
+    }
+
+    for (int s = 0; s < 3; s++) {
+      if (b.armorCounts()[s] < a.armorCounts()[s] || b.weaponCounts()[s] < a.weaponCounts()[s]) {
+        return false;
+      }
+
+      if (b.armorCounts()[s] > a.armorCounts()[s] || b.weaponCounts()[s] > a.weaponCounts()[s]) {
         strict = true;
       }
     }
