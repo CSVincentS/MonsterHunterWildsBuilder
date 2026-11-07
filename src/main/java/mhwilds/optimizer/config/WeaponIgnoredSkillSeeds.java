@@ -28,7 +28,7 @@ public final class WeaponIgnoredSkillSeeds {
 
       Map<String, List<Integer>> raw = mapper.readValue(
         in,
-        new com.fasterxml.jackson.core.type.TypeReference<Map<String, List<Integer>>>() {}
+        new com.fasterxml.jackson.core.type.TypeReference<>() {}
       );
 
       Map<String, Set<Integer>> parsed = new HashMap<>();

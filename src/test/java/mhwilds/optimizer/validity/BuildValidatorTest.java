@@ -10,12 +10,10 @@ import org.junit.jupiter.api.Test;
 
 class BuildValidatorTest {
 
-  private Map<Integer, Skill> skillMap;
   private BuildValidator validator;
 
   @BeforeEach
   void setup() {
-    skillMap = Map.of(100, new Skill(100, "TestSkillA", 5), 200, new Skill(200, "TestSkillB", 3));
     validator = new BuildValidator();
   }
 

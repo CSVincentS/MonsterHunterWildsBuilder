@@ -1,7 +1,5 @@
 package mhwilds.optimizer.gui;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import mhwilds.optimizer.model.ArmorPiece;
@@ -14,48 +12,6 @@ import mhwilds.optimizer.model.WeaponRoll;
 public final class BuildDetailFormatter {
 
   private BuildDetailFormatter() {}
-
-  public static String decorationsSummary(Build build) {
-    Map<String, Integer> counts = new LinkedHashMap<>();
-
-    for (SlotAssignment sa : build.armorDecorations()) {
-      String target = sa.targetPiece() != null ? sa.targetPiece().name().toLowerCase() : "weapon";
-      counts.merge(sa.decoration().name() + "→" + target, 1, Integer::sum);
-    }
-
-    for (SlotAssignment sa : build.weaponDecorations()) {
-      counts.merge(sa.decoration().name() + "→weapon", 1, Integer::sum);
-    }
-
-    for (SlotAssignment sa : build.amuletArmorDecorations()) {
-      counts.merge(sa.decoration().name() + "→amulet", 1, Integer::sum);
-    }
-
-    for (SlotAssignment sa : build.amuletWeaponDecorations()) {
-      counts.merge(sa.decoration().name() + "→amulet weapon", 1, Integer::sum);
-    }
-
-    if (counts.isEmpty()) {
-      return "(none)";
-    }
-
-    List<String> parts = new ArrayList<>(counts.keySet().stream().sorted().toList());
-
-    for (int i = 0; i < parts.size(); i++) {
-      int n = counts.get(parts.get(i));
-      parts.set(i, n > 1 ? parts.get(i) + " ×" + n : parts.get(i));
-    }
-
-    return String.join(", ", parts);
-  }
-
-  public static String detailText(
-    Build build,
-    Map<Integer, Skill> skillMap,
-    Map<Integer, Map<Integer, Integer>> setSkillRanks
-  ) {
-    return detailText(build, BuildScore.of(build, "free_slots", 0L), skillMap, setSkillRanks);
-  }
 
   public static String detailText(
     Build build,

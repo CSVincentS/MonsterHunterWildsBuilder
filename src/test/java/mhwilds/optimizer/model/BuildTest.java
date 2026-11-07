@@ -337,7 +337,7 @@ class BuildTest {
     assertThat(onlyGroup).isEqualTo(1500);
     assertThat(bothUsed).isZero();
 
-    // Rolls are worth nothing on an ordinary weapon, or when the feature was never modelled.
+    // Rolls are worth nothing on an ordinary weapon, or when the feature was never modeled.
     assertThat(
       buildWithRoll(
         new Weapon(1, "bow", "Bow", 100, 0, new int[] {}, Map.of(), List.of()),

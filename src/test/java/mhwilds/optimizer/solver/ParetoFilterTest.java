@@ -52,23 +52,8 @@ class ParetoFilterTest {
       List<Build> paredResults = paredSolver.solve(pared);
       long tPared = System.currentTimeMillis() - t1;
 
-      List<Long> rawScores = rawResults
-        .stream()
-        .map(b -> scoreOf(b, bonus))
-        .sorted()
-        .toList();
-      List<Long> paredScores = paredResults
-        .stream()
-        .map(b -> scoreOf(b, bonus))
-        .sorted()
-        .toList();
-
-      Set<Integer> rawIds = new HashSet<>();
       Set<Integer> paredIds = new HashSet<>();
 
-      for (ArmorPiece up : raw.armorPieces()) {
-        rawIds.add(up.gameId());
-      }
       for (ArmorPiece up : pared.armorPieces()) {
         paredIds.add(up.gameId());
       }

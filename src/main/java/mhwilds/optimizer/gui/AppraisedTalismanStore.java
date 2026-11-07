@@ -47,14 +47,6 @@ public final class AppraisedTalismanStore {
     talismans.add(talisman);
   }
 
-  public void update(int index, AppraisedTalisman talisman) {
-    if (talisman == null) {
-      throw new NullPointerException("talisman must not be null");
-    }
-
-    talismans.set(index, talisman);
-  }
-
   public void remove(int index) {
     talismans.remove(index);
   }
@@ -192,10 +184,7 @@ public final class AppraisedTalismanStore {
       throw new IllegalArgumentException("'" + name + "' has no skills");
     }
 
-    var fields = skillsNode.fields();
-
-    while (fields.hasNext()) {
-      var entry = fields.next();
+    for (Map.Entry<String, JsonNode> entry : skillsNode.properties()) {
       int skillId;
 
       try {

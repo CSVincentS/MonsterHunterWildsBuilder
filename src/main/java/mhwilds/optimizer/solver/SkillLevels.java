@@ -38,18 +38,8 @@ final class SkillLevels {
       Integer pos = positions.get(e.getKey());
 
       if (pos != null) {
-        pack |= (long) (e.getValue() & SKILL_MASK) << (BITS_PER_SKILL * pos);
+        pack |= (e.getValue() & SKILL_MASK) << (BITS_PER_SKILL * pos);
       }
-    }
-
-    return pack;
-  }
-
-  static long packLevels(int[] levels, int n) {
-    long pack = 0;
-
-    for (int i = 0; i < n; i++) {
-      pack |= (long) (levels[i] & SKILL_MASK) << (BITS_PER_SKILL * i);
     }
 
     return pack;
@@ -62,7 +52,7 @@ final class SkillLevels {
   static long setLevel(long pack, int pos, int level) {
     return (
       (pack & ~(SKILL_MASK << (BITS_PER_SKILL * pos))) |
-      ((long) (level & SKILL_MASK) << (BITS_PER_SKILL * pos))
+      ((level & SKILL_MASK) << (BITS_PER_SKILL * pos))
     );
   }
 

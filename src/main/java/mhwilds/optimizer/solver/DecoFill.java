@@ -20,16 +20,7 @@ public final class DecoFill {
   private final int[] groupCost;
   private final Map<Long, Long> cache = new HashMap<>();
 
-  private static final class DecoEntry {
-
-    final long pack;
-    final Decoration deco;
-
-    DecoEntry(long pack, Decoration deco) {
-      this.pack = pack;
-      this.deco = deco;
-    }
-  }
+  private record DecoEntry(long pack, Decoration deco) {}
 
   @SuppressWarnings("unchecked")
   public DecoFill(

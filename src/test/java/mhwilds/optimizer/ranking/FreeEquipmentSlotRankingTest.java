@@ -3,6 +3,7 @@ package mhwilds.optimizer.ranking;
 import static org.assertj.core.api.Assertions.*;
 
 import java.util.*;
+import java.util.stream.Stream;
 import mhwilds.optimizer.model.*;
 import org.junit.jupiter.api.Test;
 
@@ -61,7 +62,7 @@ class FreeEquipmentSlotRankingTest {
     FreeEquipmentSlotRanking ranking = new FreeEquipmentSlotRanking(1000);
     Build lean = leanBuild();
     Build full = fullBuild();
-    List<Build> sorted = List.of(full, lean).stream().sorted(ranking).toList();
+    List<Build> sorted = Stream.of(full, lean).sorted(ranking).toList();
 
     assertThat(sorted.get(0)).isSameAs(lean);
     assertThat(lean.equipmentAwareScore(1000)).isGreaterThan(full.equipmentAwareScore(1000));
@@ -98,10 +99,7 @@ class FreeEquipmentSlotRankingTest {
 
     assertThat(low.equipmentAwareScore(1000)).isEqualTo(high.equipmentAwareScore(1000));
 
-    List<Build> out = List.of(low, high)
-      .stream()
-      .sorted(new FreeEquipmentSlotRanking(1000))
-      .toList();
+    List<Build> out = Stream.of(low, high).sorted(new FreeEquipmentSlotRanking(1000)).toList();
     assertThat(out.get(0)).isEqualTo(high);
   }
 

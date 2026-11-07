@@ -255,7 +255,7 @@ public class GameDataLoader {
       return ids;
     }
 
-    skills.fields().forEachRemaining(entry -> {
+    skills.properties().forEach(entry -> {
       int id = Integer.parseInt(entry.getKey());
 
       if (entry.getValue().asInt() == 1 && rankTables.containsKey(id)) {
@@ -446,11 +446,7 @@ public class GameDataLoader {
   private Weapon parseWeapon(JsonNode node) {
     Map<String, Object> extras = new LinkedHashMap<>();
 
-    var fields = node.fields();
-
-    while (fields.hasNext()) {
-      var entry = fields.next();
-
+    for (Map.Entry<String, JsonNode> entry : node.properties()) {
       if (WEAPON_CORE_KEYS.contains(entry.getKey())) {
         continue;
       }
@@ -560,10 +556,8 @@ public class GameDataLoader {
     Map<Integer, Integer> parsed = new HashMap<>();
 
     skillsNode
-      .fields()
-      .forEachRemaining(entry ->
-        parsed.put(Integer.parseInt(entry.getKey()), entry.getValue().asInt())
-      );
+      .properties()
+      .forEach(entry -> parsed.put(Integer.parseInt(entry.getKey()), entry.getValue().asInt()));
 
     return Map.copyOf(parsed);
   }

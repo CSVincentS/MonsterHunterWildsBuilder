@@ -45,17 +45,13 @@ class GameDataLoaderTest {
 
     // 14 weapons x 3 smithy focuses (attack, affinity, element).
     assertThat(gogmazios).hasSize(42);
-    assertThat(gogmazios)
-      .extracting(w -> w.rarity())
-      .containsOnly(8);
+    assertThat(gogmazios).extracting(Weapon::rarity).containsOnly(8);
 
     // Attack focus is identified by the flat +300 upgrade sitting outside every crafting tree.
-    assertThat(gogmazios)
-      .extracting(w -> w.attackRaw())
-      .contains(200, 180, 190);
+    assertThat(gogmazios).extracting(Weapon::attackRaw).contains(200, 180, 190);
     assertThat(gogmazios)
       .filteredOn(w -> w.attackRaw() == 200)
-      .extracting(w -> w.affinity())
+      .extracting(Weapon::affinity)
       .containsOnly(-10);
   }
 
@@ -70,12 +66,12 @@ class GameDataLoaderTest {
       .hasSize(411);
     assertThat(data.weapons())
       .filteredOn(w -> w.rarity() == 8 && !w.gogmazios())
-      .extracting(w -> w.name())
+      .extracting(Weapon::name)
       .contains("Angelbein", "Chrono Gear", "Melting Point");
 
     assertThat(data.weapons())
       .filteredOn(w -> w.rarity() == 8 && w.gogmazios())
-      .extracting(w -> w.name())
+      .extracting(Weapon::name)
       .doesNotContain("Angelbein", "Chrono Gear", "Melting Point");
   }
 
@@ -190,13 +186,12 @@ class GameDataLoaderTest {
 
     assertThat(data.weapons()).isNotEmpty();
     assertThat(data.weapons()).allMatch(w -> w.kind() != null && !w.kind().isBlank());
-    assertThat(
-      data
-        .weapons()
-        .stream()
-        .map(w -> w.kind())
-        .distinct()
-    ).contains("bow", "great-sword", "light-bowgun", "heavy-bowgun");
+    assertThat(data.weapons().stream().map(Weapon::kind).distinct()).contains(
+      "bow",
+      "great-sword",
+      "light-bowgun",
+      "heavy-bowgun"
+    );
   }
 
   @Test

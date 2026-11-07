@@ -50,11 +50,9 @@ class GearPoolResolverTest {
     GearPoolConfig config = GearPoolConfig.load(configPath.toString());
     SolverPool pool = new GearPoolResolver(fabricatedData()).resolve(config);
 
+    assertThat(pool.weapons()).extracting(Weapon::kind).containsOnly("great-sword");
     assertThat(pool.weapons())
-      .extracting(w -> w.kind())
-      .containsOnly("great-sword");
-    assertThat(pool.weapons())
-      .extracting(w -> w.name())
+      .extracting(Weapon::name)
       .containsExactly("OnlyIgnored GS", "Mixed GS");
   }
 
@@ -88,12 +86,8 @@ class GearPoolResolverTest {
 
     // Mixed Bow has HANDICRAFT(ignored) + OTHER(useful) -> kept; OnlyIgnored Bow has only
     // HANDICRAFT -> dropped (Handicraft is in both the bow seed and the config list).
-    assertThat(pool.weapons())
-      .extracting(w -> w.name())
-      .contains("Mixed Bow");
-    assertThat(pool.weapons())
-      .extracting(w -> w.name())
-      .doesNotContain("OnlyIgnored Bow");
+    assertThat(pool.weapons()).extracting(Weapon::name).contains("Mixed Bow");
+    assertThat(pool.weapons()).extracting(Weapon::name).doesNotContain("OnlyIgnored Bow");
   }
 
   @Test
@@ -102,9 +96,7 @@ class GearPoolResolverTest {
     SolverPool pool = new GearPoolResolver(data).resolve(config);
 
     assertThat(pool.weapons()).isNotEmpty();
-    assertThat(pool.weapons())
-      .extracting(w -> w.kind())
-      .containsOnly("bow");
+    assertThat(pool.weapons()).extracting(Weapon::kind).containsOnly("bow");
   }
 
   @Test
@@ -486,19 +478,15 @@ class GearPoolResolverTest {
     );
     SolverPool pool = new GearPoolResolver(fabricatedData()).resolve(config);
 
-    assertThat(pool.armorPieces())
-      .extracting(a -> a.setName())
-      .containsExactly("Mixed Set");
+    assertThat(pool.armorPieces()).extracting(ArmorPiece::setName).containsExactly("Mixed Set");
     assertThat(pool.armorDecorations())
-      .extracting(d -> d.name())
+      .extracting(Decoration::name)
       .containsExactly("OnlyIgnored Jewel", "Mixed Jewel", "NoSkill Jewel");
     assertThat(pool.weaponDecorations()).isEmpty();
     assertThat(pool.amuletRanks())
-      .extracting(a -> a.name())
+      .extracting(AmuletRank::name)
       .containsExactly("OnlyIgnored Charm I");
-    assertThat(pool.weapons())
-      .extracting(b -> b.name())
-      .containsExactly("OnlyIgnored Bow");
+    assertThat(pool.weapons()).extracting(Weapon::name).containsExactly("OnlyIgnored Bow");
   }
 
   @Test
@@ -512,18 +500,14 @@ class GearPoolResolverTest {
     SolverPool minPool = new GearPoolResolver(fabricatedData()).resolve(minOnly);
 
     assertThat(minPool.armorPieces())
-      .extracting(a -> a.setName())
+      .extracting(ArmorPiece::setName)
       .containsExactly("OnlyIgnored Set");
     assertThat(minPool.armorDecorations())
-      .extracting(d -> d.name())
+      .extracting(Decoration::name)
       .containsExactly("Mixed Jewel", "NoSkill Jewel");
     assertThat(minPool.weaponDecorations()).isEmpty();
-    assertThat(minPool.amuletRanks())
-      .extracting(a -> a.name())
-      .containsExactly("Mixed Charm I");
-    assertThat(minPool.weapons())
-      .extracting(b -> b.name())
-      .containsExactly("Mixed Bow");
+    assertThat(minPool.amuletRanks()).extracting(AmuletRank::name).containsExactly("Mixed Charm I");
+    assertThat(minPool.weapons()).extracting(Weapon::name).containsExactly("Mixed Bow");
 
     GearPoolConfig maxOnly = configWithRarity(
       "{ \"exclude_sets\": [], \"exclude_skills\": [], \"max_rarity\": 1 }",
@@ -534,18 +518,16 @@ class GearPoolResolverTest {
     SolverPool maxPool = new GearPoolResolver(fabricatedData()).resolve(maxOnly);
 
     assertThat(maxPool.armorPieces())
-      .extracting(a -> a.setName())
+      .extracting(ArmorPiece::setName)
       .containsExactly("NoSkill Set");
     assertThat(maxPool.armorDecorations())
-      .extracting(d -> d.name())
+      .extracting(Decoration::name)
       .containsExactly("OnlyIgnored Jewel", "Mixed Jewel", "NoSkill Jewel");
     assertThat(maxPool.weaponDecorations()).isNotEmpty();
     assertThat(maxPool.amuletRanks())
-      .extracting(a -> a.name())
+      .extracting(AmuletRank::name)
       .containsExactly("OnlyIgnored Charm I", "Mixed Charm I");
-    assertThat(maxPool.weapons())
-      .extracting(b -> b.name())
-      .containsExactly("OnlyIgnored Bow");
+    assertThat(maxPool.weapons()).extracting(Weapon::name).containsExactly("OnlyIgnored Bow");
   }
 
   @Test
@@ -688,32 +670,26 @@ class GearPoolResolverTest {
     SolverPool pool = new GearPoolResolver(fabricatedData()).resolve(config);
 
     assertThat(pool.armorPieces())
-      .extracting(a -> a.setName())
+      .extracting(ArmorPiece::setName)
       .contains("Mixed Set", "NoSkill Set");
     assertThat(pool.armorPieces())
-      .extracting(a -> a.setName())
+      .extracting(ArmorPiece::setName)
       .doesNotContain("OnlyIgnored Set");
     assertThat(pool.armorDecorations())
-      .extracting(d -> d.name())
+      .extracting(Decoration::name)
       .contains("Mixed Jewel", "NoSkill Jewel");
     assertThat(pool.armorDecorations())
-      .extracting(d -> d.name())
+      .extracting(Decoration::name)
       .doesNotContain("OnlyIgnored Jewel");
     assertThat(pool.weaponDecorations())
-      .extracting(d -> d.name())
+      .extracting(Decoration::name)
       .doesNotContain("OnlyIgnored Weapon Jewel");
+    assertThat(pool.amuletRanks()).extracting(AmuletRank::name).contains("Mixed Charm I");
     assertThat(pool.amuletRanks())
-      .extracting(a -> a.name())
-      .contains("Mixed Charm I");
-    assertThat(pool.amuletRanks())
-      .extracting(a -> a.name())
+      .extracting(AmuletRank::name)
       .doesNotContain("OnlyIgnored Charm I");
-    assertThat(pool.weapons())
-      .extracting(b -> b.name())
-      .contains("Mixed Bow");
-    assertThat(pool.weapons())
-      .extracting(b -> b.name())
-      .doesNotContain("OnlyIgnored Bow");
+    assertThat(pool.weapons()).extracting(Weapon::name).contains("Mixed Bow");
+    assertThat(pool.weapons()).extracting(Weapon::name).doesNotContain("OnlyIgnored Bow");
   }
 
   @Test
@@ -722,20 +698,18 @@ class GearPoolResolverTest {
     SolverPool pool = new GearPoolResolver(fabricatedData()).resolve(config);
 
     assertThat(pool.armorPieces())
-      .extracting(a -> a.setName())
+      .extracting(ArmorPiece::setName)
       .contains("OnlyIgnored Set", "Mixed Set", "NoSkill Set");
     assertThat(pool.armorDecorations())
-      .extracting(d -> d.name())
+      .extracting(Decoration::name)
       .contains("OnlyIgnored Jewel", "Mixed Jewel", "NoSkill Jewel");
     assertThat(pool.weaponDecorations())
-      .extracting(d -> d.name())
+      .extracting(Decoration::name)
       .contains("OnlyIgnored Weapon Jewel");
     assertThat(pool.amuletRanks())
-      .extracting(a -> a.name())
+      .extracting(AmuletRank::name)
       .contains("OnlyIgnored Charm I", "Mixed Charm I");
-    assertThat(pool.weapons())
-      .extracting(b -> b.name())
-      .contains("OnlyIgnored Bow", "Mixed Bow");
+    assertThat(pool.weapons()).extracting(Weapon::name).contains("OnlyIgnored Bow", "Mixed Bow");
   }
 
   @Test
@@ -746,15 +720,9 @@ class GearPoolResolverTest {
     List<String> allDecos = pool
       .armorDecorations()
       .stream()
-      .map(d -> d.name())
+      .map(Decoration::name)
       .collect(Collectors.toList());
-    allDecos.addAll(
-      pool
-        .weaponDecorations()
-        .stream()
-        .map(d -> d.name())
-        .toList()
-    );
+    allDecos.addAll(pool.weaponDecorations().stream().map(Decoration::name).toList());
     assertThat(allDecos).doesNotContain(
       "Ironwall Jewel [1]",
       "Handicraft Jewel [1]",

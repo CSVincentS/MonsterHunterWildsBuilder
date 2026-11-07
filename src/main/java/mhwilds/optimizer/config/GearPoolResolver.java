@@ -247,7 +247,7 @@ public class GearPoolResolver {
       return false;
     }
 
-    return skills.keySet().stream().allMatch(ignoredSkillIds::contains);
+    return ignoredSkillIds.containsAll(skills.keySet());
   }
 
   private <T> List<T> dropIgnoredSkillOnly(
@@ -324,7 +324,7 @@ public class GearPoolResolver {
         }
 
         boolean allSkillsExcluded =
-          !p.skills().isEmpty() && p.skills().keySet().stream().allMatch(excludeSkillIds::contains);
+          !p.skills().isEmpty() && excludeSkillIds.containsAll(p.skills().keySet());
 
         return !allSkillsExcluded;
       })

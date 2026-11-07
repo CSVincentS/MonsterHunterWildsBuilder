@@ -39,7 +39,9 @@ final class TopK {
       heap.add(build);
     }
 
-    worst = scoreOf(heap.peek());
+    Build peek = heap.peek();
+    assert peek != null;
+    worst = scoreOf(peek);
   }
 
   List<Build> sorted() {

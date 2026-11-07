@@ -642,15 +642,15 @@ class CatalogSolverTest {
 
     boolean done = true;
 
-    for (int k = 0; k < need.length; k++) {
-      if (need[k] > 0) {
+    for (int i : need) {
+      if (i > 0) {
         done = false;
         break;
       }
     }
 
     if (done) {
-      return Math.min(best, consumed);
+      return consumed;
     }
 
     if (idx == slots.size()) {
